@@ -41,11 +41,12 @@ $text = $text.Replace('</unspawnedCanDo>', '</unspawnedNotInCaravanCanDo>')
 Set-Content $mentalDefs $text -Encoding UTF8
 
 # RimWorld 1.6 validates humanlike PawnKinds for prisoner resistance/will ranges.
-# Meeseeks should have no prisoner resistance or will, so explicitly use zero ranges.
+# FloatRange.FromString uses either a single number or min~max syntax in 1.6.
+# Meeseeks should have no prisoner resistance or will, so the single value 0 gives a 0..0 range.
 $pawnKind = 'meeseeks/Defs/PawnKindDefs/PawnKinds_Meeseeks.xml'
 $text = Get-Content $pawnKind -Raw
 if ($text -notmatch '<initialResistanceRange>') {
-    $insert = "`r`n`t`t<initialResistanceRange>(0,0)</initialResistanceRange>`r`n`t`t<initialWillRange>(0,0)</initialWillRange>"
+    $insert = "`r`n`t`t<initialResistanceRange>0</initialResistanceRange>`r`n`t`t<initialWillRange>0</initialWillRange>"
     $text = $text.Replace('</PawnKindDef>', "$insert`r`n`t</PawnKindDef>")
 }
 Set-Content $pawnKind $text -Encoding UTF8
@@ -74,7 +75,9 @@ $obsoletePatterns = @(
     '<unspawnedCanDo>',
     '<ToxicSensitivity>',
     'Pawn_Melee_Punch_HitBuilding<',
-    'Class="AudioGrain_Folder"'
+    'Class="AudioGrain_Folder"',
+    '<initialResistanceRange>\s*\(',
+    '<initialWillRange>\s*\('
 )
 foreach ($file in $activeXml) {
     $content = Get-Content $file.FullName -Raw
