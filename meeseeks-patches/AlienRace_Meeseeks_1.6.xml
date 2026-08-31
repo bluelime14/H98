@@ -14,7 +14,8 @@
       <ComfyTemperatureMin>-100</ComfyTemperatureMin>
       <ComfyTemperatureMax>100</ComfyTemperatureMax>
       <PainShockThreshold>5</PainShockThreshold>
-      <ToxicSensitivity>0</ToxicSensitivity>
+      <!-- ToxicSensitivity was removed after the old 1.2-era build. 1.0 ToxicResistance preserves the intended immunity. -->
+      <ToxicResistance>1</ToxicResistance>
       <MentalBreakThreshold>0.40</MentalBreakThreshold>
       <GlobalLearningFactor>0</GlobalLearningFactor>
       <WorkSpeedGlobal>0.50</WorkSpeedGlobal>
@@ -85,6 +86,8 @@
       <fleshType>Normal</fleshType>
       <bloodDef>MeeseeksBlood</bloodDef>
       <baseBodySize>1.0</baseBodySize>
+      <!-- Required by the 1.6 normal-flesh race validator even though Meeseeks cannot mate. -->
+      <gestationPeriodDays>1</gestationPeriodDays>
       <canBePredatorPrey>false</canBePredatorPrey>
       <forceGender>Male</forceGender>
       <disableMating>true</disableMating>
@@ -114,7 +117,7 @@
       </hediffGiverSets>
 
       <soundMeleeHitPawn>Pawn_Melee_Punch_HitPawn</soundMeleeHitPawn>
-      <soundMeleeHitBuilding>Pawn_Melee_Punch_HitBuilding</soundMeleeHitBuilding>
+      <soundMeleeHitBuilding>Pawn_Melee_Punch_HitBuilding_Generic</soundMeleeHitBuilding>
       <soundMeleeMiss>Pawn_Melee_Punch_Miss</soundMeleeMiss>
       <soundMeleeDodge>Pawn_MeleeDodge</soundMeleeDodge>
       <specialShadowData>
@@ -123,4 +126,17 @@
       </specialShadowData>
     </race>
   </ThingDef>
+
+  <!-- HAR used to carry this normal TraitDef inside the race file. Keep it as a vanilla trait so the custom mental-break system can resolve it. -->
+  <TraitDef>
+    <defName>CM_Meeseeks_Box_Trait_Meeseeks</defName>
+    <commonality>0</commonality>
+    <degreeDatas>
+      <li>
+        <degree>0</degree>
+        <label>Meeseeks</label>
+        <description>Existence is pain to a Meeseeks, and they will do anything to alleviate that pain.</description>
+      </li>
+    </degreeDatas>
+  </TraitDef>
 </Defs>
