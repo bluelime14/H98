@@ -31,6 +31,10 @@ jobs:
         shell: pwsh
         run: ./meeseeks-patches/apply-native-race.ps1
 
+      - name: Add 1.6 Meeseeks box debug controls
+        shell: pwsh
+        run: Copy-Item 'meeseeks-patches/CompMeeseeksBox_1.6.cs' 'meeseeks/Source/CM_Meeseeks_Box/Comps/CompMeeseeksBox.cs' -Force
+
       - name: Validate XML and HAR removal
         shell: pwsh
         run: |
