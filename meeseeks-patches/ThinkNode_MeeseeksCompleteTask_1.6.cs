@@ -18,9 +18,9 @@ namespace CM_Meeseeks_Box
     /// RimWorld 1.6-compatible Meeseeks task driver.
     ///
     /// In addition to the original WorkGiver reconstruction path, this version can fall back to
-    /// recreating the saved ordered job directly when a task has no usable WorkGiverDef. This is
-    /// important for helper-chain Meeseeks: CopyJobDataFrom can correctly copy a direct/special
-    /// order even though the original selector has no WorkGiver with which to manufacture it.
+    /// recreating the saved ordered job directly when a task has no usable WorkGiverDef. It also
+    /// converts shared vanilla Hunt orders into the mod's reservation-free Meeseeks Kill job so a
+    /// whole helper chain can attack the same prey instead of all but one waiting on reservations.
     /// </summary>
     public class ThinkNode_MeeseeksCompleteTask : ThinkNode
     {
@@ -74,15 +74,55 @@ namespace CM_Meeseeks_Box
             }
             else if (nextJob == null && memory.jobTargets.Count > 0)
             {
-                // The task still exists but is temporarily unavailable, most often because another
-                // Meeseeks has the one target reserved. Stay committed to the task and retry soon
-                // instead of falling through to Relaxing Socially.
+                // The task still exists but is temporarily unavailable. Stay committed and retry
+                // soon instead of falling through to Relaxing Socially.
                 nextJob = JobMaker.MakeJob(JobDefOf.Wait_MaintainPosture, 30);
             }
 
             return nextJob != null
                 ? new ThinkResult(nextJob, this, JobTag.MiscWork, fromQueue: false)
                 : ThinkResult.NoJob;
+        }
+
+        private static bool IsSharedHunt(SavedJob savedJob)
+        {
+            if (savedJob == null)
+                return false;
+
+            if (savedJob.def == JobDefOf.Hunt)
+                return true;
+
+            return savedJob.workGiverDef != null &&
+                   savedJob.workGiverDef.Worker is WorkGiver_HunterHunt;
+        }
+
+        private Job TryMakeSharedHuntJob(CompMeeseeksMemory memory)
+        {
+            // Vanilla WorkGiver_HunterHunt requires CanReserve(target), which means only one hunter
+            // can own the prey. Meeseeks' custom Kill job intentionally makes no such reservation,
+            // allowing every member of the creator chain to pile onto the same shared objective.
+            while (memory.jobTargets.Count > 0)
+            {
+                SavedTargetInfo targetInfo = memory.jobTargets[0];
+                if (targetInfo == null || !targetInfo.IsValid || !targetInfo.HasThing)
+                {
+                    memory.jobTargets.RemoveAt(0);
+                    continue;
+                }
+
+                Pawn prey = targetInfo.Thing as Pawn;
+                if (prey == null || prey.Destroyed || prey.Dead || !prey.Spawned)
+                {
+                    memory.jobTargets.RemoveAt(0);
+                    continue;
+                }
+
+                Job killJob = JobMaker.MakeJob(MeeseeksDefOf.CM_Meeseeks_Box_Job_Kill, prey);
+                killJob.playerForced = false;
+                return killJob;
+            }
+
+            return null;
         }
 
         private Job TryMakeDirectSavedJob(Pawn meeseeks, CompMeeseeksMemory memory)
@@ -100,9 +140,6 @@ namespace CM_Meeseeks_Box
             if (directJob == null || directJob.def == null)
                 return null;
 
-            // This is now an AI continuation of an already accepted family task, not a new player
-            // order. Marking it non-forced prevents CompMeeseeksMemory from interpreting it as a
-            // second life-purpose task.
             directJob.playerForced = false;
 
             try
@@ -127,6 +164,12 @@ namespace CM_Meeseeks_Box
 
             if (memory.jobStuck)
                 return JobMaker.MakeJob(JobDefOf.Wait_MaintainPosture, 1);
+
+            // A vanilla Hunt order is a shared "make this animal dead" objective for a Meeseeks
+            // chain. Do not route helpers back through WorkGiver_HunterHunt, because its reservation
+            // check guarantees all but one of them will stand around waiting.
+            if (IsSharedHunt(savedJob))
+                return TryMakeSharedHuntJob(memory);
 
             List<SavedTargetInfo> delayedTargets = new List<SavedTargetInfo>();
             MeeseeksJobSelector jobSelector = defaultJobSelector;
