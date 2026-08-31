@@ -88,6 +88,77 @@ namespace CM_Meeseeks_Box
             }
         }
 
+        // RimWorld 1.6's humanlike renderer assumes several spawned-pawn trackers and a
+        // silhouette are available at draw time. HAR used to provide/normalize this state.
+        // Repair any missing spawned trackers before rendering. The finalizer is deliberately
+        // scoped to Meeseeks and only absorbs NullReferenceException from this renderer method;
+        // this keeps a harmless late-frame null from flooding the log while retaining every
+        // other rendering exception for diagnosis.
+        [HarmonyPatch(typeof(PawnRenderer), nameof(PawnRenderer.RenderPawnAt))]
+        public static class PawnRenderer_RenderPawnAt_NativeMeeseeks
+        {
+            [HarmonyPrefix]
+            public static void Prefix(Pawn ___pawn)
+            {
+                if (!IsMeeseeks(___pawn))
+                    return;
+
+                try
+                {
+                    if (___pawn.Spawned &&
+                        (___pawn.pather == null || ___pawn.roping == null ||
+                         ___pawn.flight == null || ___pawn.rotationTracker == null))
+                    {
+                        PawnComponentsUtility.AddComponentsForSpawn(___pawn);
+                    }
+
+                    LifeStageDef stage = ___pawn.ageTracker?.CurLifeStage;
+                    if (stage != null && stage.silhouetteGraphicData == null)
+                    {
+                        LifeStageDef vanillaAdult = DefDatabase<LifeStageDef>.GetNamedSilentFail("HumanlikeAdult");
+                        if (vanillaAdult?.silhouetteGraphicData != null)
+                            stage.silhouetteGraphicData = vanillaAdult.silhouetteGraphicData;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.WarningOnce("Mister Meeseeks: render-state repair failed before draw: " + ex, 191061601);
+                }
+            }
+
+            [HarmonyFinalizer]
+            public static Exception Finalizer(Exception __exception, Pawn ___pawn)
+            {
+                if (__exception is NullReferenceException && IsMeeseeks(___pawn))
+                {
+                    LifeStageDef stage = null;
+                    try
+                    {
+                        stage = ___pawn.ageTracker?.CurLifeStage;
+                    }
+                    catch
+                    {
+                    }
+
+                    string diagnostics =
+                        "Mister Meeseeks: contained RimWorld 1.6 PawnRenderer null. " +
+                        "Spawned=" + ___pawn.Spawned +
+                        ", stances=" + (___pawn.stances != null) +
+                        ", pather=" + (___pawn.pather != null) +
+                        ", roping=" + (___pawn.roping != null) +
+                        ", flight=" + (___pawn.flight != null) +
+                        ", ageTracker=" + (___pawn.ageTracker != null) +
+                        ", lifeStage=" + (stage?.defName ?? "null") +
+                        ", silhouette=" + (stage?.silhouetteGraphicData != null) + ".";
+
+                    Log.WarningOnce(diagnostics, 191061602);
+                    return null;
+                }
+
+                return __exception;
+            }
+        }
+
         // Meeseeks keep Mood because the mod's Existence Is Pain mechanic depends on it.
         // This must be a PREFIX. During initial pawn construction RimWorld's vanilla
         // ShouldHaveNeed checks DevelopmentalStage before the custom pawn's age/life-stage
