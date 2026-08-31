@@ -39,6 +39,10 @@ jobs:
         shell: pwsh
         run: Copy-Item 'meeseeks-patches/CompMeeseeksBox_1.6.cs' 'meeseeks/Source/CM_Meeseeks_Box/Comps/CompMeeseeksBox.cs' -Force
 
+      - name: Add Meeseeks helper-chain behavior
+        shell: pwsh
+        run: Copy-Item 'meeseeks-patches/MeeseeksChainPatches.cs' 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksChainPatches.cs' -Force
+
       - name: Validate XML and HAR removal
         shell: pwsh
         run: |
@@ -65,7 +69,12 @@ jobs:
           if ($nameRules -notmatch 'r_name->Meeseeks' -or $nameRules -match '<li>name->Meeseeks</li>') {
             throw "Meeseeks name rule pack is not using RimWorld 1.6 r_name root"
           }
-          Write-Host 'XML parse check passed, active HAR references are gone, and Meeseeks name rules use the RimWorld 1.6 root.'
+
+          $chainPatch = Get-Content 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksChainPatches.cs' -Raw
+          if ($chainPatch -notmatch 'CM_Meeseeks_Box_Job_UseMeeseeksBox' -or $chainPatch -notmatch 'PropagateTaskToDescendants') {
+            throw "Meeseeks helper-chain patch was not applied"
+          }
+          Write-Host 'XML parse check passed, active HAR references are gone, Meeseeks name rules use the RimWorld 1.6 root, and helper-chain behavior is installed.'
 
       - name: Restore
         shell: pwsh
