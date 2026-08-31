@@ -114,7 +114,36 @@ $util = 'meeseeks/Source/CM_Meeseeks_Box/MeeseeksUtility.cs'
 $text = Get-Content $util -Raw
 $text = $text -replace 'Thing smoke = ThingMaker\.MakeThing\(ThingDefOf\.Gas_Smoke\);\s*GenSpawn\.Spawn\(smoke, summonPosition, map\);\s*MeeseeksUtility\.PlayPoofInSound\(smoke\);', 'GasUtility.AddGas(summonPosition, map, GasType.BlindSmoke, 255); MeeseeksUtility.PlayPoofInSound(mrMeeseeksLookAtMe);'
 $text = $text -replace 'Thing smoke = ThingMaker\.MakeThing\(ThingDefOf\.Gas_Smoke\);\s*GenSpawn\.Spawn\(smoke, mrMeeseeksLookAtMe\.PositionHeld, mrMeeseeksLookAtMe\.MapHeld\);', 'GasUtility.AddGas(mrMeeseeksLookAtMe.PositionHeld, mrMeeseeksLookAtMe.MapHeld, GasType.BlindSmoke, 255);'
+
+# The original type caches arrays of MeeseeksDefOf sound fields in static initializers.
+# RimWorld 1.6 can touch MeeseeksUtility before DefOf injection has populated those fields,
+# permanently caching null SoundDefs and producing "Tried to PlayOneShot with null SoundDef".
+# Make the arrays lazy properties so the DefOf fields are read at the time sound is played.
+$text = [regex]::Replace($text, 'private static SoundDef\[\] ([A-Za-z0-9_]+) = \{', 'private static SoundDef[] $1 => new SoundDef[] {')
+$text = $text.Replace('PoofInSounds.RandomElement().PlayOneShot(GetTargetInfo(target));', 'SoundDef soundDef = PoofInSounds.RandomElement(); if (soundDef != null) soundDef.PlayOneShot(GetTargetInfo(target));')
+$text = $text.Replace('PoofOutSounds.RandomElement().PlayOneShot(GetTargetInfo(target));', 'SoundDef soundDef = PoofOutSounds.RandomElement(); if (soundDef != null) soundDef.PlayOneShot(GetTargetInfo(target));')
+$text = $text.Replace('if (!MeeseeksMod.settings.meeseeksSpeaks)', 'if (!MeeseeksMod.settings.meeseeksSpeaks || soundDef == null)')
 Set-Content $util $text -Encoding UTF8
+
+# If a shared task still has targets but none are currently available (usually because another
+# Meeseeks has the target reserved), the original node falls through to the idle tree and chooses
+# Relaxing Socially for hundreds of ticks. Keep the pawn committed to the family task instead:
+# wait briefly, then rescan. This preserves RimWorld reservation safety and lets helpers split over
+# multiple available targets while retrying single-target work until it becomes available/completes.
+$completeTask = 'meeseeks/Source/CM_Meeseeks_Box/Thinking/ThinkNode_MeeseeksCompleteTask.cs'
+$text = Get-Content $completeTask -Raw
+$completePattern = 'if \(nextJob == null && compMeeseeksMemory\.jobTargets\.Count == 0\)\s*nextJob = JobMaker\.MakeJob\(MeeseeksDefOf\.CM_Meeseeks_Box_Job_EmbraceTheVoid\);'
+$completeReplacement = @'
+if (nextJob == null && compMeeseeksMemory.jobTargets.Count == 0)
+                    nextJob = JobMaker.MakeJob(MeeseeksDefOf.CM_Meeseeks_Box_Job_EmbraceTheVoid);
+                else if (nextJob == null && compMeeseeksMemory.jobTargets.Count > 0)
+                    nextJob = JobMaker.MakeJob(JobDefOf.Wait_MaintainPosture, 30);
+'@
+if ($text -notmatch $completePattern) {
+  throw 'Could not find Meeseeks completion fallback block for task-retry patch.'
+}
+$text = [regex]::Replace($text, $completePattern, $completeReplacement.Trim(), 1)
+Set-Content $completeTask $text -Encoding UTF8
 
 $selection = 'meeseeks/Source/CM_Meeseeks_Box/Patches/SelectionDrawerPatches.cs'
 $text = Get-Content $selection -Raw
