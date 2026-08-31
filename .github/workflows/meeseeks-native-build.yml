@@ -43,7 +43,7 @@ jobs:
         shell: pwsh
         run: Copy-Item 'meeseeks-patches/MeeseeksChainPatches.cs' 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksChainPatches.cs' -Force
 
-      - name: Harden inherited Meeseeks task execution
+      - name: Add persistent Meeseeks mission behavior
         shell: pwsh
         run: |
           Copy-Item 'meeseeks-patches/ThinkNode_MeeseeksCompleteTask_1.6.cs' 'meeseeks/Source/CM_Meeseeks_Box/Thinking/ThinkNode_MeeseeksCompleteTask.cs' -Force
@@ -82,8 +82,15 @@ jobs:
           }
 
           $taskNode = Get-Content 'meeseeks/Source/CM_Meeseeks_Box/Thinking/ThinkNode_MeeseeksCompleteTask.cs' -Raw
-          if ($taskNode -notmatch 'TryMakeDirectSavedJob' -or $taskNode -notmatch 'Wait_MaintainPosture') {
-            throw "Meeseeks inherited-task fallback was not applied"
+          foreach ($marker in @('TryMakeDirectSavedJob','CompMeeseeksMissionState','MeeseeksMissionKind','FindWorkTypeJob','FindRaidCombatJob','MurderFrustrationTicks')) {
+            if ($taskNode -notmatch [regex]::Escape($marker)) {
+              throw "Meeseeks mission system marker missing: $marker"
+            }
+          }
+
+          $raceXml = Get-Content 'meeseeks/Defs/AlienRaces/AlienRace_Meeseeks.xml' -Raw
+          if ($raceXml -notmatch 'CompProperties_MeeseeksMissionState') {
+            throw "Meeseeks mission state comp was not added to native race"
           }
 
           $workerUtility = Get-Content 'meeseeks/Source/CM_Meeseeks_Box/WorkerDefUtility.cs' -Raw
@@ -91,7 +98,7 @@ jobs:
             throw "Legacy WorkerDefUtility debug spam remains"
           }
 
-          Write-Host 'XML parse check passed, active HAR references are gone, Meeseeks name rules use the RimWorld 1.6 root, helper-chain behavior is installed, and inherited-task fallback is active.'
+          Write-Host 'XML parse check passed, active HAR references are gone, helper chains are installed, and persistent WorkType/raid/hunt mission behavior with frustration is active.'
 
       - name: Restore
         shell: pwsh
