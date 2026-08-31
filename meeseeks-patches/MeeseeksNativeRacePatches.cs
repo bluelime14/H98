@@ -89,16 +89,22 @@ namespace CM_Meeseeks_Box
         }
 
         // Meeseeks keep Mood because the mod's Existence Is Pain mechanic depends on it.
+        // This must be a PREFIX. During initial pawn construction RimWorld's vanilla
+        // ShouldHaveNeed checks DevelopmentalStage before the custom pawn's age/life-stage
+        // data has finished initializing, which can throw for chemical needs. HAR used to
+        // shield the race from that path. For Meeseeks we know the answer up-front, so skip
+        // the vanilla method entirely and only create Mood.
         [HarmonyPatch(typeof(Pawn_NeedsTracker), "ShouldHaveNeed")]
         public static class PawnNeedsTracker_ShouldHaveNeed_Meeseeks
         {
-            [HarmonyPostfix]
-            public static void Postfix(Pawn ___pawn, NeedDef nd, ref bool __result)
+            [HarmonyPrefix]
+            public static bool Prefix(Pawn ___pawn, NeedDef nd, ref bool __result)
             {
                 if (!IsMeeseeks(___pawn))
-                    return;
+                    return true;
 
                 __result = nd != null && nd.defName == "Mood";
+                return false;
             }
         }
 
