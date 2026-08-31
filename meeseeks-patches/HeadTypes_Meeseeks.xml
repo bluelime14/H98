@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <!-- Native 1.6 head def using the original Meeseeks head textures. -->
+  <HeadTypeDef>
+    <defName>CM_Meeseeks_Box_Head_Happy</defName>
+    <label>Meeseeks</label>
+    <graphicPath>Things/Pawn/Meeseeks/Head/Male_Happy</graphicPath>
+    <gender>Male</gender>
+    <narrow>true</narrow>
+    <randomChosen>false</randomChosen>
+  </HeadTypeDef>
+</Defs>
