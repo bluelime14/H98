@@ -43,6 +43,12 @@ jobs:
         shell: pwsh
         run: Copy-Item 'meeseeks-patches/MeeseeksChainPatches.cs' 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksChainPatches.cs' -Force
 
+      - name: Harden inherited Meeseeks task execution
+        shell: pwsh
+        run: |
+          Copy-Item 'meeseeks-patches/ThinkNode_MeeseeksCompleteTask_1.6.cs' 'meeseeks/Source/CM_Meeseeks_Box/Thinking/ThinkNode_MeeseeksCompleteTask.cs' -Force
+          Copy-Item 'meeseeks-patches/WorkerDefUtility_1.6.cs' 'meeseeks/Source/CM_Meeseeks_Box/WorkerDefUtility.cs' -Force
+
       - name: Validate XML and HAR removal
         shell: pwsh
         run: |
@@ -74,7 +80,18 @@ jobs:
           if ($chainPatch -notmatch 'CM_Meeseeks_Box_Job_UseMeeseeksBox' -or $chainPatch -notmatch 'PropagateTaskToDescendants') {
             throw "Meeseeks helper-chain patch was not applied"
           }
-          Write-Host 'XML parse check passed, active HAR references are gone, Meeseeks name rules use the RimWorld 1.6 root, and helper-chain behavior is installed.'
+
+          $taskNode = Get-Content 'meeseeks/Source/CM_Meeseeks_Box/Thinking/ThinkNode_MeeseeksCompleteTask.cs' -Raw
+          if ($taskNode -notmatch 'TryMakeDirectSavedJob' -or $taskNode -notmatch 'Wait_MaintainPosture') {
+            throw "Meeseeks inherited-task fallback was not applied"
+          }
+
+          $workerUtility = Get-Content 'meeseeks/Source/CM_Meeseeks_Box/WorkerDefUtility.cs' -Raw
+          if ($workerUtility -match 'Returning .* defs for') {
+            throw "Legacy WorkerDefUtility debug spam remains"
+          }
+
+          Write-Host 'XML parse check passed, active HAR references are gone, Meeseeks name rules use the RimWorld 1.6 root, helper-chain behavior is installed, and inherited-task fallback is active.'
 
       - name: Restore
         shell: pwsh
