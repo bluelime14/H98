@@ -7,12 +7,21 @@
     human-specific transition worker can dereference null during pawn construction.
 
     The base LifeStageWorker performs only the generic capacity refresh, which is exactly what
-    a one-stage, always-adult summoned race needs.
+    a one-stage, always-adult summoned race needs. Humanlike rendering in RimWorld 1.6 also
+    assumes every current life stage has silhouetteGraphicData, so preserve the vanilla adult
+    silhouette metadata without restoring the unsafe HumanlikeAdult worker.
   -->
   <LifeStageDef>
     <defName>CM_Meeseeks_Box_LifeStage_Adult</defName>
     <label>adult</label>
+    <visible>false</visible>
     <developmentalStage>Adult</developmentalStage>
+    <sittingOffset>0.18</sittingOffset>
+    <silhouetteGraphicData>
+      <texPath>Things/Pawn/Humanlike/Silhouettes/Silhouette_HumanAdult</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <drawSize>1</drawSize>
+    </silhouetteGraphicData>
   </LifeStageDef>
 
   <!-- RimWorld 1.6 native Meeseeks race. No Humanoid Alien Races dependency. -->
