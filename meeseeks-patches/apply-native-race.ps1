@@ -14,6 +14,50 @@ Copy-Item 'meeseeks-patches/HeadTypes_Meeseeks.xml' 'meeseeks/Defs/HeadTypeDefs/
 # Small C# compatibility layer replaces HAR's forced appearance, need filtering and thought filtering.
 Copy-Item 'meeseeks-patches/MeeseeksNativeRacePatches.cs' 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksNativeRacePatches.cs' -Force
 
+# Meeseeks are summoned temporary constructs, not ordinary generated colonists. RimWorld 1.6's
+# generic PawnKind/Faction overload tries to generate human age, biography, ideology, addictions,
+# family relations and gear. HAR used to smooth over much of that. Give the generator an explicit
+# request so every summon is deterministic and skips those irrelevant systems.
+$utility = 'meeseeks/Source/CM_Meeseeks_Box/MeeseeksUtility.cs'
+$text = Get-Content $utility -Raw
+$oldSpawn = 'Pawn mrMeeseeksLookAtMe = PawnGenerator.GeneratePawn(pawnKindDef, Faction.OfPlayer);'
+$newSpawn = @'
+PawnGenerationRequest request = new PawnGenerationRequest(
+                pawnKindDef,
+                Faction.OfPlayer,
+                PawnGenerationContext.NonPlayer,
+                forceGenerateNewPawn: true,
+                canGeneratePawnRelations: false,
+                allowPregnant: false,
+                allowFood: false,
+                allowAddictions: false,
+                fixedBiologicalAge: 20f,
+                fixedChronologicalAge: 20f,
+                fixedGender: Gender.Male,
+                forceNoIdeo: true,
+                forceNoBackstory: true,
+                developmentalStages: DevelopmentalStage.Adult,
+                forceNoGear: true);
+            Pawn mrMeeseeksLookAtMe = PawnGenerator.GeneratePawn(request);
+'@
+if (-not $text.Contains($oldSpawn)) {
+    throw 'Could not find the original Meeseeks PawnGenerator call to replace.'
+}
+$text = $text.Replace($oldSpawn, $newSpawn.Trim())
+Set-Content $utility $text -Encoding UTF8
+
+# Do not consume the box cooldown until a Meeseeks has actually been generated. If pawn creation
+# throws, the player can press the box again instead of being locked into a cooldown with no pawn.
+$boxComp = 'meeseeks/Source/CM_Meeseeks_Box/Comps/CompMeeseeksBox.cs'
+$text = Get-Content $boxComp -Raw
+$spawnPattern = '(?s)if \(!Prefs\.DevMode \|\| !MeeseeksMod\.settings\.screenShotDebug\)\s*cooldownTicksRemaining = cooldownTicksTotal;\s*MeeseeksUtility\.SpawnMeeseeks\(creator, parent, creator\.MapHeld\);'
+$spawnReplacement = "MeeseeksUtility.SpawnMeeseeks(creator, parent, creator.MapHeld);`r`n`r`n            if (!Prefs.DevMode || !MeeseeksMod.settings.screenShotDebug)`r`n                cooldownTicksRemaining = cooldownTicksTotal;"
+if ($text -notmatch $spawnPattern) {
+    throw 'Could not find CompMeeseeksBox cooldown/spawn block to reorder.'
+}
+$text = [regex]::Replace($text, $spawnPattern, $spawnReplacement, 1)
+Set-Content $boxComp $text -Encoding UTF8
+
 # --- Old 1.2/HAR XML -> RimWorld 1.6 XML compatibility ---
 
 # HAR supplied its own BackstoryDef subclass. RimWorld 1.6 has a native BackstoryDef,
@@ -48,6 +92,11 @@ $text = Get-Content $pawnKind -Raw
 if ($text -notmatch '<initialResistanceRange>') {
     $insert = "`r`n`t`t<initialResistanceRange>0</initialResistanceRange>`r`n`t`t<initialWillRange>0</initialWillRange>"
     $text = $text.Replace('</PawnKindDef>', "$insert`r`n`t</PawnKindDef>")
+}
+# The original maxGenerationAge=1 conflicts with RimWorld 1.6's Adult developmental-stage generation.
+# The summon path now fixes age directly, and these values keep debug/direct PawnKind generation sane too.
+if ($text -match '<maxGenerationAge>1</maxGenerationAge>') {
+    $text = $text.Replace('<maxGenerationAge>1</maxGenerationAge>', '<minGenerationAge>20</minGenerationAge>' + "`r`n`t`t" + '<maxGenerationAge>20</maxGenerationAge>')
 }
 Set-Content $pawnKind $text -Encoding UTF8
 
@@ -88,4 +137,4 @@ foreach ($file in $activeXml) {
     }
 }
 
-Write-Host 'Native Meeseeks race layer applied: Harmony required, HAR removed, legacy XML converted for RimWorld 1.6.'
+Write-Host 'Native Meeseeks race layer applied: Harmony required, HAR removed, legacy XML converted, runtime summon generation hardened for RimWorld 1.6.'
