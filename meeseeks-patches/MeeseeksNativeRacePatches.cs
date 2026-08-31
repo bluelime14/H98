@@ -88,6 +88,26 @@ namespace CM_Meeseeks_Box
             }
         }
 
+        // The original race intentionally names every summoned pawn "Meeseeks". RimWorld 1.6's
+        // race-level NameGenerator path rejects a generated NameSingle if that exact name has ever
+        // been used in the game, so the second summon repeatedly generates "Meeseeks", rejects it,
+        // and logs "Could not get new name". Skip the uniqueness-based name generator only for this
+        // race and preserve the original repeated-name behavior.
+        [HarmonyPatch(typeof(PawnBioAndNameGenerator), nameof(PawnBioAndNameGenerator.GeneratePawnName),
+            new Type[] { typeof(Pawn), typeof(NameStyle), typeof(string), typeof(bool), typeof(XenotypeDef) })]
+        public static class PawnBioAndNameGenerator_GeneratePawnName_Meeseeks
+        {
+            [HarmonyPrefix]
+            public static bool Prefix(Pawn pawn, ref Name __result)
+            {
+                if (!IsMeeseeks(pawn))
+                    return true;
+
+                __result = new NameSingle("Meeseeks");
+                return false;
+            }
+        }
+
         // RimWorld 1.6's humanlike renderer assumes several spawned-pawn trackers and a
         // silhouette are available at draw time. HAR used to provide/normalize this state.
         // Repair any missing spawned trackers before rendering. The finalizer is deliberately
