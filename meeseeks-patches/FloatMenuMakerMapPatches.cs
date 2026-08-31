@@ -30,7 +30,7 @@ namespace CM_Meeseeks_Box
             }
         }
 
-        private sealed class MenuPatchState
+        public sealed class MenuPatchState
         {
             public Pawn pawn;
             public IntVec3 cell;
@@ -44,9 +44,6 @@ namespace CM_Meeseeks_Box
             public static void Prefix(List<Pawn> selectedPawns, Vector3 clickPos, ref MenuPatchState __state)
             {
                 __state = new MenuPatchState();
-
-                // The 1.2 mod generated orders per pawn. Keep that behavior for a single
-                // selected Meeseeks while leaving RimWorld 1.6 multiselect untouched.
                 if (selectedPawns == null || selectedPawns.Count != 1)
                     return;
 
@@ -89,7 +86,6 @@ namespace CM_Meeseeks_Box
             {
                 if (__state != null && __state.forcedDesignations && __state.pawn?.MapHeld != null)
                     DesignatorUtility.RestoreDesignationsOnCell(__state.cell, __state.pawn.MapHeld);
-
                 return __exception;
             }
 
@@ -101,20 +97,16 @@ namespace CM_Meeseeks_Box
                     IntVec3 curLoc = GenRadial.RadialPattern[i] + clickCell;
                     if (!curLoc.Standable(pawn.Map))
                         continue;
-
                     if (curLoc == pawn.Position)
                         return null;
-
                     if (!pawn.CanReach(curLoc, PathEndMode.OnCell, Danger.Deadly))
                         return new FloatMenuOption("CannotGoNoPath".Translate(), null);
 
                     Action action = delegate
                     {
                         memory.guardPosition = curLoc;
-
                         Job job = JobMaker.MakeJob(JobDefOf.Goto, curLoc);
                         job.playerForced = true;
-
                         pawn.drafter.Drafted = true;
                         if (pawn.jobs.TryTakeOrderedJob(job))
                             MoteMaker.MakeStaticMote(curLoc, pawn.Map, ThingDefOf.Mote_FeedbackGoto);
@@ -128,7 +120,6 @@ namespace CM_Meeseeks_Box
                         autoTakeablePriority = 10f
                     };
                 }
-
                 return null;
             }
         }
