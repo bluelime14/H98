@@ -54,15 +54,35 @@ namespace CM_Meeseeks_Box
             }
         }
 
+        private void CleanupProgressBar()
+        {
+            if (progressBar == null)
+                return;
+
+            progressBar.Cleanup();
+            progressBar = null;
+        }
+
         private void ResetCooldown()
         {
             cooldownTicksRemaining = 0;
+            CleanupProgressBar();
+        }
 
-            if (progressBar != null)
-            {
-                progressBar.Cleanup();
-                progressBar = null;
-            }
+        public override void PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)
+        {
+            // The cooldown bar is a free-standing Effecter/Mote. If the box disappears while
+            // cooling down, it will otherwise remain on the map with no owner to clean it up.
+            CleanupProgressBar();
+            base.PostDeSpawn(map, mode);
+        }
+
+        public override void PostDestroy(DestroyMode mode, Map previousMap)
+        {
+            // PostDestroy can follow PostDeSpawn depending on how the box is removed. The helper
+            // is idempotent, so calling it here as well covers God Mode destruction and other paths.
+            CleanupProgressBar();
+            base.PostDestroy(mode, previousMap);
         }
 
         public override void CompTick()
@@ -74,11 +94,7 @@ namespace CM_Meeseeks_Box
 
             if (!Coolingdown)
             {
-                if (progressBar != null)
-                {
-                    progressBar.Cleanup();
-                    progressBar = null;
-                }
+                CleanupProgressBar();
             }
             else
             {
