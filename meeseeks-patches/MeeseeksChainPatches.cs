@@ -72,10 +72,13 @@ namespace CM_Meeseeks_Box
                 childMemory.temporarilyBlockTask = false;
                 childMemory.CopyJobDataFrom(taskSource);
 
-                // Stop an idle/wait/helper-box job so the child immediately re-evaluates
-                // its think tree using the newly inherited real task.
+                // Clear idle/wait/helper-box work, but DON'T immediately run TryFindAndStartJob
+                // from inside the creator's StartJob Harmony finalizer. Re-entering another pawn's
+                // think tree while the root job is still being installed can make the child scan
+                // the target too early and fall through to Relaxing Socially. Leaving curJob null
+                // lets Pawn_JobTracker pick up the inherited task normally on the child's next tick.
                 if (child.Spawned && child.jobs != null && child.CurJob != null)
-                    child.jobs.EndCurrentJob(JobCondition.InterruptOptional);
+                    child.jobs.EndCurrentJob(JobCondition.InterruptOptional, false);
 
                 PropagateRecursive(taskSource, childMemory, visited);
             }
@@ -136,10 +139,10 @@ namespace CM_Meeseeks_Box
                 {
                     childMemory.temporarilyBlockTask = false;
 
-                    // If RimWorld already selected an idle/social job during the spawn frame,
-                    // interrupt it so the pawn becomes immediately responsive to player orders.
+                    // Clear any idle job selected during the spawn frame and let the child's
+                    // normal job tracker choose its next action on its own next tick.
                     if (child.Spawned && child.jobs != null && child.CurJob != null)
-                        child.jobs.EndCurrentJob(JobCondition.InterruptOptional);
+                        child.jobs.EndCurrentJob(JobCondition.InterruptOptional, false);
                 }
             }
         }
