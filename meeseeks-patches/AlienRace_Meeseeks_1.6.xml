@@ -1,5 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Defs>
+  <!--
+    Meeseeks are created fully formed. Do not use RimWorld's HumanlikeAdult life-stage worker:
+    in 1.6 that worker assumes an existing previous juvenile stage when a player-faction pawn
+    enters adulthood during play. A freshly generated Meeseeks has no previous stage, so the
+    human-specific transition worker can dereference null during pawn construction.
+
+    The base LifeStageWorker performs only the generic capacity refresh, which is exactly what
+    a one-stage, always-adult summoned race needs.
+  -->
+  <LifeStageDef>
+    <defName>CM_Meeseeks_Box_LifeStage_Adult</defName>
+    <label>adult</label>
+    <developmentalStage>Adult</developmentalStage>
+  </LifeStageDef>
+
   <!-- RimWorld 1.6 native Meeseeks race. No Humanoid Alien Races dependency. -->
   <ThingDef ParentName="BasePawn">
     <defName>MeeseeksRace</defName>
@@ -14,7 +29,6 @@
       <ComfyTemperatureMin>-100</ComfyTemperatureMin>
       <ComfyTemperatureMax>100</ComfyTemperatureMax>
       <PainShockThreshold>5</PainShockThreshold>
-      <!-- ToxicSensitivity was removed after the old 1.2-era build. 1.0 ToxicResistance preserves the intended immunity. -->
       <ToxicResistance>1</ToxicResistance>
       <MentalBreakThreshold>0.40</MentalBreakThreshold>
       <GlobalLearningFactor>0</GlobalLearningFactor>
@@ -86,7 +100,6 @@
       <fleshType>Normal</fleshType>
       <bloodDef>MeeseeksBlood</bloodDef>
       <baseBodySize>1.0</baseBodySize>
-      <!-- Required by the 1.6 normal-flesh race validator even though Meeseeks cannot mate. -->
       <gestationPeriodDays>1</gestationPeriodDays>
       <canBePredatorPrey>false</canBePredatorPrey>
       <forceGender>Male</forceGender>
@@ -97,7 +110,7 @@
 
       <lifeStageAges>
         <li>
-          <def>HumanlikeAdult</def>
+          <def>CM_Meeseeks_Box_LifeStage_Adult</def>
           <minAge>0</minAge>
         </li>
       </lifeStageAges>
@@ -127,7 +140,6 @@
     </race>
   </ThingDef>
 
-  <!-- HAR used to carry this normal TraitDef inside the race file. Keep it as a vanilla trait so the custom mental-break system can resolve it. -->
   <TraitDef>
     <defName>CM_Meeseeks_Box_Trait_Meeseeks</defName>
     <commonality>0</commonality>
