@@ -2,6 +2,7 @@ $ErrorActionPreference = 'Stop'
 
 # Metadata: RimWorld 1.6 + Harmony only.
 Copy-Item 'meeseeks-patches/About_1.6.xml' 'meeseeks/About/About.xml' -Force
+Copy-Item 'meeseeks-patches/Manifest_1.6.xml' 'meeseeks/About/Manifest.xml' -Force
 
 # Replace the HAR race def with a native ThingDef race using RimWorld 1.6's Humanlike render tree.
 Copy-Item 'meeseeks-patches/AlienRace_Meeseeks_1.6.xml' 'meeseeks/Defs/AlienRaces/AlienRace_Meeseeks.xml' -Force
@@ -18,16 +19,13 @@ if (Test-Path 'meeseeks/About/PublishedFileId.txt') {
     Remove-Item 'meeseeks/About/PublishedFileId.txt' -Force
 }
 
-# Fail the build if active metadata/XML still contains a runtime dependency on Humanoid Alien Races.
-$activeFiles = @(
-    'meeseeks/About/About.xml',
-    'meeseeks/Defs/AlienRaces/AlienRace_Meeseeks.xml'
-)
-foreach ($file in $activeFiles) {
-    $content = Get-Content $file -Raw
+# Fail if any active runtime metadata/defs still contain HAR-specific declarations.
+$activeXml = Get-ChildItem 'meeseeks/About','meeseeks/Defs' -Recurse -Filter *.xml
+foreach ($file in $activeXml) {
+    $content = Get-Content $file.FullName -Raw
     if ($content -match 'erdelf\.humanoidalienraces|AlienRace\.ThingDef_AlienRace|<alienRace>') {
-        throw "HAR dependency survived native-race conversion in $file"
+        throw "HAR dependency survived native-race conversion in $($file.FullName)"
     }
 }
 
-Write-Host 'Native Meeseeks race layer applied: Harmony required, HAR removed.'
+Write-Host 'Native Meeseeks race layer applied: Harmony required, HAR removed from active runtime XML.'
