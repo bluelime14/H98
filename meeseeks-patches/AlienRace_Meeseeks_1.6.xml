@@ -89,6 +89,9 @@
       <li Class="CM_Meeseeks_Box.CompProperties_MeeseeksMemory">
         <compClass>CM_Meeseeks_Box.CompMeeseeksMemory</compClass>
       </li>
+      <li Class="CM_Meeseeks_Box.CompProperties_MeeseeksMissionState">
+        <compClass>CM_Meeseeks_Box.CompMeeseeksMissionState</compClass>
+      </li>
     </comps>
 
     <race>
