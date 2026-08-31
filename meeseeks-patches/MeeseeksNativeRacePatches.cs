@@ -9,8 +9,8 @@ namespace CM_Meeseeks_Box
 {
     /// <summary>
     /// Replaces the appearance/need/thought pieces that the original mod delegated to
-    /// Humanoid Alien Races.  The pawn is still a real custom ThingDef race; it simply
-    /// uses RimWorld 1.6's native Humanlike render tree.
+    /// Humanoid Alien Races. The pawn remains a real custom ThingDef race and uses
+    /// RimWorld 1.6's native Humanlike render tree.
     /// </summary>
     [StaticConstructorOnStartup]
     public static class MeeseeksNativeRacePatches
@@ -18,7 +18,6 @@ namespace CM_Meeseeks_Box
         private static readonly Color MeeseeksSkin = new Color(0.40f, 0.80f, 0.93f, 1f);
         private static readonly Color MeeseeksHair = new Color(0.95f, 0.35f, 0.05f, 1f);
 
-        // Mirrors the mundane thoughts the HAR race definition suppressed in the 1.2 mod.
         private static readonly HashSet<string> SuppressedThoughts = new HashSet<string>
         {
             "Expectations", "EnvironmentDark", "ApparelDamaged", "WrongApparelGender",
@@ -69,7 +68,6 @@ namespace CM_Meeseeks_Box
                 pawn.style.BodyTattoo = null;
             }
 
-            // Re-evaluate needs after the race-specific need patch below is active.
             if (pawn.needs != null)
             {
                 pawn.needs.AddOrRemoveNeedsAsAppropriate();
@@ -90,8 +88,7 @@ namespace CM_Meeseeks_Box
             }
         }
 
-        // Meeseeks keep Mood because the mod's Existence Is Pain mechanic depends on it,
-        // but do not need food, rest, recreation, comfort, beauty, room size, outdoors, etc.
+        // Meeseeks keep Mood because the mod's Existence Is Pain mechanic depends on it.
         [HarmonyPatch(typeof(Pawn_NeedsTracker), "ShouldHaveNeed")]
         public static class PawnNeedsTracker_ShouldHaveNeed_Meeseeks
         {
@@ -101,7 +98,7 @@ namespace CM_Meeseeks_Box
                 if (!IsMeeseeks(___pawn))
                     return;
 
-                __result = nd == NeedDefOf.Mood;
+                __result = nd != null && nd.defName == "Mood";
             }
         }
 
