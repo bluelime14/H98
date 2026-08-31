@@ -1,0 +1,85 @@
+name: Mister Meeseeks 1.6 no-HAR test build
+
+on:
+  push:
+    branches:
+      - meeseeks-1.6-build
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Clone original Mister Meeseeks
+        shell: pwsh
+        run: git clone --depth 1 https://github.com/CaptainMuscles/CM_Meeseeks_Box.git meeseeks
+
+      - name: Apply RimWorld 1.6 API port
+        shell: pwsh
+        run: ./meeseeks-patches/apply-1.6.ps1
+
+      - name: Convert HAR race to native RimWorld 1.6 race
+        shell: pwsh
+        run: ./meeseeks-patches/apply-native-race.ps1
+
+      - name: Validate XML and HAR removal
+        shell: pwsh
+        run: |
+          $errors = @()
+          Get-ChildItem meeseeks -Recurse -Filter *.xml | ForEach-Object {
+            try {
+              [xml](Get-Content $_.FullName -Raw) | Out-Null
+            } catch {
+              $errors += "$($_.FullName): $($_.Exception.Message)"
+            }
+          }
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_ }
+            throw "XML validation failed"
+          }
+
+          $harHits = Select-String -Path 'meeseeks/About/About.xml','meeseeks/Defs/AlienRaces/AlienRace_Meeseeks.xml' -Pattern 'erdelf.humanoidalienraces|AlienRace.ThingDef_AlienRace|<alienRace>'
+          if ($harHits) {
+            $harHits | ForEach-Object { Write-Error $_ }
+            throw "HAR dependency remains in active race metadata"
+          }
+          Write-Host 'XML parse check passed and active HAR references are gone.'
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore meeseeks/Source/CM_Meeseeks_Box/CM_Meeseeks_Box.csproj
+
+      - name: Build RimWorld 1.6 DLL
+        shell: pwsh
+        run: dotnet build meeseeks/Source/CM_Meeseeks_Box/CM_Meeseeks_Box.csproj -c Release --no-restore -v:minimal
+
+      - name: Package installable test mod
+        shell: pwsh
+        run: |
+          $root = 'package/Mister Meeseeks'
+          New-Item -ItemType Directory -Force -Path $root | Out-Null
+          foreach ($dir in @('About','Assemblies','Defs','Languages','Sounds','Textures','Patches')) {
+            $src = Join-Path 'meeseeks' $dir
+            if (Test-Path $src) {
+              Copy-Item $src (Join-Path $root $dir) -Recurse -Force
+            }
+          }
+          foreach ($file in @('Changelog.txt','README.md')) {
+            $src = Join-Path 'meeseeks' $file
+            if (Test-Path $src) {
+              Copy-Item $src (Join-Path $root $file) -Force
+            }
+          }
+          Compress-Archive -Path $root -DestinationPath 'Mister_Meeseeks_1.6_NoHAR_TestBuild.zip' -Force
+
+      - name: Upload installable no-HAR test build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mister_Meeseeks_1.6_NoHAR_TestBuild
+          path: Mister_Meeseeks_1.6_NoHAR_TestBuild.zip
