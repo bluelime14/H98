@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - meeseeks-1.6-build
+  pull_request:
+    branches:
+      - master
   workflow_dispatch:
 
 jobs:
@@ -48,7 +51,6 @@ jobs:
           '@
           Set-Content -Path meeseeks/Source/CM_Meeseeks_Box/CM_Meeseeks_Box.csproj -Value $project -Encoding UTF8
 
-          # 1.6 moved the debug inspector to LudeonTK.
           $debug = 'meeseeks/Source/CM_Meeseeks_Box/Patches/DebugPatches.cs'
           $text = Get-Content $debug -Raw
           if ($text -notmatch 'using LudeonTK;') {
@@ -56,20 +58,16 @@ jobs:
             Set-Content $debug $text -Encoding UTF8
           }
 
-          # AreaRestriction was replaced in 1.6.
           $pps = 'meeseeks/Source/CM_Meeseeks_Box/Patches/Pawn_PlayerSettingsPatches.cs'
           $text = Get-Content $pps -Raw
           $text = $text -replace 'AreaRestriction', 'AreaRestrictionInPawnCurrentMap'
           Set-Content $pps $text -Encoding UTF8
 
-          # ReceiveLetter gained delayTicks and playSound parameters in 1.6.
           $letters = 'meeseeks/Source/CM_Meeseeks_Box/Patches/LetterStackPatches.cs'
           $text = Get-Content $letters -Raw
           $text = $text -replace 'typeof\(List<ThingDef>\), typeof\(string\) \}\)\]', 'typeof(List<ThingDef>), typeof(string), typeof(int), typeof(bool) })]'
           Set-Content $letters $text -Encoding UTF8
 
-          # The old FloatMenu API was completely replaced in 1.6. Disable this one patch
-          # for the first compiler pass so the build log can expose the rest of the API drift.
           Rename-Item 'meeseeks/Source/CM_Meeseeks_Box/Patches/FloatMenuMakerMapPatches.cs' 'FloatMenuMakerMapPatches.cs.disabled'
 
       - name: Restore
