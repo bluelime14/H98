@@ -1,0 +1,88 @@
+name: Mister Meeseeks 1.6 compile
+
+on:
+  push:
+    branches:
+      - meeseeks-1.6-build
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout build workspace
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Clone original Mister Meeseeks source
+        shell: pwsh
+        run: |
+          git clone --depth 1 https://github.com/CaptainMuscles/CM_Meeseeks_Box.git meeseeks
+
+      - name: Prepare RimWorld 1.6 compile project
+        shell: pwsh
+        run: |
+          $project = @'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net472</TargetFramework>
+              <LangVersion>latest</LangVersion>
+              <Nullable>disable</Nullable>
+              <AssemblyName>CM_Meeseeks_Box</AssemblyName>
+              <RootNamespace>CM_Meeseeks_Box</RootNamespace>
+              <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+              <OutputPath>..\..\Assemblies\</OutputPath>
+              <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+              <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+              <DebugType>none</DebugType>
+            </PropertyGroup>
+            <ItemGroup>
+              <PackageReference Include="Krafs.Rimworld.Ref" Version="1.6.4871" PrivateAssets="all" />
+              <PackageReference Include="Lib.Harmony" Version="2.4.2" PrivateAssets="all" />
+            </ItemGroup>
+          </Project>
+          '@
+          Set-Content -Path meeseeks/Source/CM_Meeseeks_Box/CM_Meeseeks_Box.csproj -Value $project -Encoding UTF8
+
+          # 1.6 moved the debug inspector to LudeonTK.
+          $debug = 'meeseeks/Source/CM_Meeseeks_Box/Patches/DebugPatches.cs'
+          $text = Get-Content $debug -Raw
+          if ($text -notmatch 'using LudeonTK;') {
+            $text = $text -replace 'using HarmonyLib;', "using HarmonyLib;`r`nusing LudeonTK;"
+            Set-Content $debug $text -Encoding UTF8
+          }
+
+          # AreaRestriction was replaced in 1.6.
+          $pps = 'meeseeks/Source/CM_Meeseeks_Box/Patches/Pawn_PlayerSettingsPatches.cs'
+          $text = Get-Content $pps -Raw
+          $text = $text -replace 'AreaRestriction', 'AreaRestrictionInPawnCurrentMap'
+          Set-Content $pps $text -Encoding UTF8
+
+          # ReceiveLetter gained delayTicks and playSound parameters in 1.6.
+          $letters = 'meeseeks/Source/CM_Meeseeks_Box/Patches/LetterStackPatches.cs'
+          $text = Get-Content $letters -Raw
+          $text = $text -replace 'typeof\(List<ThingDef>\), typeof\(string\) \}\)\]', 'typeof(List<ThingDef>), typeof(string), typeof(int), typeof(bool) })]'
+          Set-Content $letters $text -Encoding UTF8
+
+          # The old FloatMenu API was completely replaced in 1.6. Disable this one patch
+          # for the first compiler pass so the build log can expose the rest of the API drift.
+          Rename-Item 'meeseeks/Source/CM_Meeseeks_Box/Patches/FloatMenuMakerMapPatches.cs' 'FloatMenuMakerMapPatches.cs.disabled'
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore meeseeks/Source/CM_Meeseeks_Box/CM_Meeseeks_Box.csproj
+
+      - name: Build compiler pass
+        shell: pwsh
+        run: dotnet build meeseeks/Source/CM_Meeseeks_Box/CM_Meeseeks_Box.csproj -c Release --no-restore -v:minimal
+
+      - name: Upload DLL if build succeeds
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CM_Meeseeks_Box-1.6-compile-pass
+          path: meeseeks/Assemblies/CM_Meeseeks_Box.dll
