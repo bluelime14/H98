@@ -1,0 +1,34 @@
+name: Mister Meeseeks 1.6 compile v2
+
+on:
+  push:
+    branches:
+      - meeseeks-1.6-build
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Clone original source
+        shell: pwsh
+        run: git clone --depth 1 https://github.com/CaptainMuscles/CM_Meeseeks_Box.git meeseeks
+      - name: Apply RimWorld 1.6 compatibility layer
+        shell: pwsh
+        run: ./meeseeks-patches/apply-1.6.ps1
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore meeseeks/Source/CM_Meeseeks_Box/CM_Meeseeks_Box.csproj
+      - name: Build
+        shell: pwsh
+        run: dotnet build meeseeks/Source/CM_Meeseeks_Box/CM_Meeseeks_Box.csproj -c Release --no-restore -v:minimal
+      - name: Upload compiled DLL
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CM_Meeseeks_Box-1.6-v2
+          path: meeseeks/Assemblies/CM_Meeseeks_Box.dll
