@@ -53,7 +53,6 @@ $text = $text -replace '(?m)^\s*public override int DraggableDimensions => 2;\s*
 $text = $text -replace 'SoundDefOf\.Designate_Harvest', 'SoundDefOf.Designate_DragStandard_Changed'
 Set-Content $area $text -Encoding UTF8
 
-# Replacement implementation handles 1.6 designation indexing correctly.
 Copy-Item 'meeseeks-patches/DesignatorUtility.cs' 'meeseeks/Source/CM_Meeseeks_Box/DesignatorUtility.cs' -Force
 
 $mote = 'meeseeks/Source/CM_Meeseeks_Box/Effecters/MoteProgressBar_Colored.cs'
@@ -122,6 +121,5 @@ $text = Get-Content $selection -Raw
 $text = $text -replace 'WorldRendererUtility\.WorldRenderedNow == false', 'true'
 Set-Content $selection $text -Encoding UTF8
 
-# The original 1.2 float menu patch cannot compile against 1.6. It is intentionally disabled
-# during the API sweep and will be replaced by a native 1.6 provider-compatible implementation.
-Rename-Item 'meeseeks/Source/CM_Meeseeks_Box/Patches/FloatMenuMakerMapPatches.cs' 'FloatMenuMakerMapPatches.cs.disabled'
+# Replace the 1.2 right-click patch with the RimWorld 1.6 float-menu implementation.
+Copy-Item 'meeseeks-patches/FloatMenuMakerMapPatches.cs' 'meeseeks/Source/CM_Meeseeks_Box/Patches/FloatMenuMakerMapPatches.cs' -Force
