@@ -68,6 +68,38 @@ jobs:
           $text = $text -replace 'typeof\(List<ThingDef>\), typeof\(string\) \}\)\]', 'typeof(List<ThingDef>), typeof(string), typeof(int), typeof(bool) })]'
           Set-Content $letters $text -Encoding UTF8
 
+          # ThingComp signatures changed in 1.6.
+          $memory = 'meeseeks/Source/CM_Meeseeks_Box/Comps/CompMeeseeksMemory.cs'
+          $text = Get-Content $memory -Raw
+          $text = $text -replace 'PostPreApplyDamage\(DamageInfo dinfo, out bool absorbed\)', 'PostPreApplyDamage(ref DamageInfo dinfo, out bool absorbed)'
+          $text = $text -replace 'base\.PostPreApplyDamage\(dinfo, out absorbed\);', 'base.PostPreApplyDamage(ref dinfo, out absorbed);'
+          $text = $text -replace 'PostDeSpawn\(Map map\)', 'PostDeSpawn(Map map, DestroyMode mode = DestroyMode.Vanish)'
+          $text = $text -replace 'base\.PostDeSpawn\(map\);', 'base.PostDeSpawn(map, mode);'
+          Set-Content $memory $text -Encoding UTF8
+
+          # DraggableDimensions was removed from Designator in 1.6; area dragging is handled by the current designator dragger.
+          $area = 'meeseeks/Source/CM_Meeseeks_Box/Designator_AreaWorkMeeseeks.cs'
+          $text = Get-Content $area -Raw
+          $text = $text -replace '(?m)^\s*public override int DraggableDimensions => 2;\s*\r?\n', ''
+          Set-Content $area $text -Encoding UTF8
+
+          # Mote drawing moved to DrawAt and scale storage changed.
+          $mote = 'meeseeks/Source/CM_Meeseeks_Box/Effecters/MoteProgressBar_Colored.cs'
+          $text = Get-Content $mote -Raw
+          $text = $text -replace 'public override void Draw\(\)', 'protected override void DrawAt(Vector3 drawLoc, bool flip = false)'
+          $text = $text -replace 'exactScale\.x, exactScale\.z', 'linearScale.x, linearScale.z'
+          Set-Content $mote $text -Encoding UTF8
+
+          # MentalState API changes in 1.6.
+          $mental = 'meeseeks/Source/CM_Meeseeks_Box/MentalStates/MentalState_MeeseeksKillCreator.cs'
+          $text = Get-Content $mental -Raw
+          $text = $text -replace 'string letterText = this\.GetBeginLetterText\(\);', 'TaggedString letterText = this.GetBeginLetterText();'
+          $text = $text -replace 'public override string GetBeginLetterText\(\)', 'public override TaggedString GetBeginLetterText()'
+          $text = $text -replace 'public override void MentalStateTick\(\)', 'public override void MentalStateTick(int delta)'
+          Set-Content $mental $text -Encoding UTF8
+
+          # The old FloatMenu API was completely replaced in 1.6. Disable this patch during the compiler sweep;
+          # it will be restored with a dedicated 1.6 implementation after the rest of the source compiles.
           Rename-Item 'meeseeks/Source/CM_Meeseeks_Box/Patches/FloatMenuMakerMapPatches.cs' 'FloatMenuMakerMapPatches.cs.disabled'
 
       - name: Restore
