@@ -108,9 +108,7 @@ namespace CM_Meeseeks_Box
                         Job job = JobMaker.MakeJob(JobDefOf.Goto, curLoc);
                         job.playerForced = true;
                         pawn.drafter.Drafted = true;
-                        if (pawn.jobs.TryTakeOrderedJob(job))
-                            MoteMaker.MakeStaticMote(curLoc, pawn.Map, ThingDefOf.Mote_FeedbackGoto);
-                        else
+                        if (!pawn.jobs.TryTakeOrderedJob(job))
                             pawn.drafter.Drafted = false;
                     };
 
