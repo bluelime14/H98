@@ -42,7 +42,7 @@ jobs:
 
       - name: Apply RimWorld 1.6 Meeseeks name rules
         shell: pwsh
-        run: Copy-Item 'meeseeks-patches/RulePackDefs_Namers_Meeseeks_1.6.xml' 'meeseeks/Defs/RulePackDefs/RulePacks_Namers_Meeseeks.xml' -Force
+        run: Copy-Item 'meeseeks-patches/RulePacks_Namers_Meeseeks_1.6.xml' 'meeseeks/Defs/RulePackDefs/RulePacks_Namers_Meeseeks.xml' -Force
 
       - name: Add 1.6 Meeseeks box debug controls
         shell: pwsh
