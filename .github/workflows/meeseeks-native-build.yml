@@ -68,6 +68,10 @@ jobs:
           Copy-Item 'meeseeks-patches/MeeseeksVanillaWorkThinkTreePatches.cs' 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksVanillaWorkThinkTreePatches.cs' -Force
           ./meeseeks-patches/apply-vanilla-work-thinktree.ps1
 
+      - name: Make vanilla helper work scheduling diagnostic-safe
+        shell: pwsh
+        run: ./meeseeks-patches/fix-v22-workthinktree.ps1
+
       - name: Prevent random creator-murder breaks during active missions
         shell: pwsh
         run: Copy-Item 'meeseeks-patches/MeeseeksMissionMentalBreakPatches.cs' 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksMissionMentalBreakPatches.cs' -Force
@@ -112,22 +116,25 @@ jobs:
           }
 
           $vanillaThink = Get-Content 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksVanillaWorkThinkTreePatches.cs' -Raw
-          foreach ($marker in @('ThinkNode_ConditionalMeeseeksWorkMission','LockPawnToMissionWorkType','HasOutstandingWorkSignal','MeeseeksWorkMissionFriendlyAttackGuard','JobMaker.ReturnToPool')) {
+          foreach ($marker in @('ThinkNode_ConditionalMeeseeksWorkMission','JobGiver_MeeseeksMissionWork','base.TryIssueJobPackage','LockPawnToMissionWorkType','HasOutstandingWorkSignal','workSettingsInitialized')) {
             if ($vanillaThink -notmatch [regex]::Escape($marker)) {
-              throw "v21 vanilla think-tree WorkType marker missing: $marker"
+              throw "v22 vanilla work marker missing: $marker"
             }
           }
+          if ($vanillaThink -match 'MeeseeksWorkMissionFriendlyAttackGuard' -or $vanillaThink -match 'HarmonyPatch\(typeof\(Pawn_JobTracker\), nameof\(Pawn_JobTracker.StartJob\)\)' -or $vanillaThink -match 'JobMaker\.ReturnToPool') {
+            throw "Unsafe v21 StartJob interception remains in v22"
+          }
           if ($vanillaThink -match 'new\s+JobGiver_Work' -or $vanillaThink -match 'JobOnThing\(' -or $vanillaThink -match 'JobOnCell\(' -or $vanillaThink -match 'TryMakePreToilReservations\(') {
-            throw "v21 WorkType patch is still manufacturing or pre-reserving jobs instead of delegating to the think tree"
+            throw "v22 WorkType patch is manufacturing or pre-reserving jobs instead of delegating to vanilla work"
           }
 
           $thinkTree = Get-Content 'meeseeks/Defs/ThinkTreeDefs/ThinkTrees_Meeseeks.xml' -Raw
-          if ($thinkTree -notmatch 'CM_Meeseeks_Box.ThinkNode_ConditionalMeeseeksWorkMission' -or $thinkTree -notmatch '<li Class="JobGiver_Work"') {
-            throw "Vanilla JobGiver_Work was not inserted into the Meeseeks think tree"
+          if ($thinkTree -notmatch 'CM_Meeseeks_Box.ThinkNode_ConditionalMeeseeksWorkMission' -or $thinkTree -notmatch 'CM_Meeseeks_Box.JobGiver_MeeseeksMissionWork') {
+            throw "v22 Meeseeks vanilla work wrapper was not inserted into the think tree"
           }
 
           if (Test-Path 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksVanillaWorkQueuePatches.cs') {
-            throw "v19 direct JobGiver_Work injection was accidentally included in v21"
+            throw "v19 direct JobGiver_Work injection was accidentally included in v22"
           }
 
           $mentalPatch = Get-Content 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksMissionMentalBreakPatches.cs' -Raw
@@ -150,7 +157,7 @@ jobs:
             throw "Meeseeks poof smoke is not using the short-lived density"
           }
 
-          Write-Host 'v21 validation passed: WorkType jobs are selected by the real Meeseeks think-tree JobGiver_Work; v19 direct scheduler injection is absent; mission completion/frustration, helper chains, combat missions and friendly-fire guard remain.'
+          Write-Host 'v22 validation passed: WorkType missions use a diagnostic-safe wrapper around RimWorld JobGiver_Work; v19 direct injection and v21 StartJob interception are absent.'
 
       - name: Restore
         shell: pwsh
