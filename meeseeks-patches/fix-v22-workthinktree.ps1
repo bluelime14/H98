@@ -1,15 +1,12 @@
 $path = 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksVanillaWorkThinkTreePatches.cs'
 $text = Get-Content $path -Raw
+$text = $text.Replace("`r`n", "`n")
 
 # 1) The v21 StartJob interception was too low-level. Remove that entire safety-net class.
-$guardMarker = '    /// <summary>`r`n    /// A WorkType mission must never accidentally turn into Meeseeks-on-Meeseeks combat.'
+$guardMarker = "    /// <summary>`n    /// A WorkType mission must never accidentally turn into Meeseeks-on-Meeseeks combat."
 $guardIndex = $text.IndexOf($guardMarker)
-if ($guardIndex -lt 0) {
-    $guardMarker = "    /// <summary>`n    /// A WorkType mission must never accidentally turn into Meeseeks-on-Meeseeks combat."
-    $guardIndex = $text.IndexOf($guardMarker)
-}
 if ($guardIndex -lt 0) { throw 'v21 friendly-attack StartJob guard marker not found' }
-$text = $text.Substring(0, $guardIndex).TrimEnd() + "`r`n}`r`n"
+$text = $text.Substring(0, $guardIndex).TrimEnd() + "`n}`n"
 
 # 2) Make the conditional side-effect free. The child work giver will initialize work settings.
 $oldSatisfied = @'
@@ -36,6 +33,8 @@ $newSatisfied = @'
             }
         }
 '@
+$oldSatisfied = $oldSatisfied.Replace("`r`n", "`n")
+$newSatisfied = $newSatisfied.Replace("`r`n", "`n")
 if (-not $text.Contains($oldSatisfied)) { throw 'v21 mission conditional block not found' }
 $text = $text.Replace($oldSatisfied, $newSatisfied)
 
@@ -46,7 +45,7 @@ $utilityIndex = $text.IndexOf($utilityMarker)
 if ($utilityIndex -lt 0) { throw 'MeeseeksVanillaWorkMissionUtility marker not found' }
 $wrapper = @'
     /// <summary>
-    /// v22 adapter around RimWorld's normal work scheduler.  Target selection, reservations,
+    /// v22 adapter around RimWorld's normal work scheduler. Target selection, reservations,
     /// construction transitions and queued jobs remain entirely vanilla.
     /// </summary>
     public class JobGiver_MeeseeksMissionWork : JobGiver_Work
@@ -81,6 +80,7 @@ $wrapper = @'
     }
 
 '@
+$wrapper = $wrapper.Replace("`r`n", "`n")
 $text = $text.Insert($utilityIndex, $wrapper)
 
 Set-Content $path $text -Encoding UTF8
