@@ -78,81 +78,21 @@ if ($text -notmatch 'job\.TryMakePreToilReservations\(pawn, false\)') {
     throw 'PrepareJob reservation preflight is missing.'
 }
 
-# Emergency per-pawn throttle: a WorkGiver that produces a job which immediately ends should
-# not be able to regenerate the exact same job ten times in a single tick.
-$fieldMarker = '        private bool snapped = false;'
-if (-not $text.Contains($fieldMarker)) {
-    throw 'Could not locate Meeseeks mission-state fields.'
-}
-$fieldInsert = @'
-        private bool snapped = false;
-        private int lastIssuedMissionJobTick = -999999;
-        private string lastIssuedMissionJobSignature = null;
-'@
-$text = $text.Replace($fieldMarker, $fieldInsert.TrimEnd())
-
-$methodMarker = '        public void NotifyRunnableWork()'
-if (-not $text.Contains($methodMarker)) {
-    throw 'Could not locate NotifyRunnableWork insertion point.'
-}
-$methodInsert = @'
-        public bool ShouldThrottleRepeatedJob(Job job)
-        {
-            if (job == null || job.def == null)
-                return false;
-
-            int now = Find.TickManager.TicksGame;
-            string signature = job.def.defName + "|" +
-                               job.GetTarget(TargetIndex.A).ToString() + "|" +
-                               job.GetTarget(TargetIndex.B).ToString() + "|" +
-                               job.GetTarget(TargetIndex.C).ToString();
-
-            if (signature == lastIssuedMissionJobSignature &&
-                now - lastIssuedMissionJobTick < 30)
-            {
-                return true;
-            }
-
-            lastIssuedMissionJobSignature = signature;
-            lastIssuedMissionJobTick = now;
-            return false;
-        }
-
-        public void NotifyRunnableWork()
-'@
-$text = $text.Replace($methodMarker, $methodInsert.TrimEnd())
-
-$issuePattern = 'if \(missionJob != null\)\s*\{\s*missionState\?\.NotifyRunnableWork\(\);\s*return new ThinkResult\(missionJob, this, JobTag\.MiscWork, fromQueue: false\);\s*\}'
-$issueRegex = [regex]::new($issuePattern)
-if ($issueRegex.Matches($text).Count -ne 1) {
-    throw 'Could not uniquely locate mission-job issue block.'
-}
-$issueReplacement = @'
-                if (missionJob != null)
-                {
-                    if (missionState?.ShouldThrottleRepeatedJob(missionJob) == true)
-                    {
-                        missionState.NotifyWaitingOnFamily();
-                        Job retryWait = JobMaker.MakeJob(JobDefOf.Wait_MaintainPosture, 30);
-                        return new ThinkResult(retryWait, this, JobTag.MiscWork, fromQueue: false);
-                    }
-
-                    missionState?.NotifyRunnableWork();
-                    return new ThinkResult(missionJob, this, JobTag.MiscWork, fromQueue: false);
-                }
-'@
-$text = $issueRegex.Replace($text, $issueReplacement.TrimEnd(), 1)
-
+# Do not add a post-selection throttle here. Once PrepareJob pre-reserves a mission job,
+# every returned job must be allowed to start so the normal JobTracker can own/release
+# those reservations. HasJobOnThing/HasJobOnCell plus the reservation preflight are the
+# anti-loop and anti-collision checks.
 Set-Content $task $text -Encoding UTF8
 
-# Fail the build immediately if any critical portion of the hardening patch did not land.
 $verify = Get-Content $task -Raw
 foreach ($marker in @(
     'scanner.HasJobOnThing(pawn, thing, true)',
     'scanner.HasJobOnCell(pawn, cell, true)',
-    'job.TryMakePreToilReservations(pawn, false)',
-    'ShouldThrottleRepeatedJob')) {
+    'job.TryMakePreToilReservations(pawn, false)')) {
     if ($verify -notmatch [regex]::Escape($marker)) {
         throw "Mission scan hardening marker missing: $marker"
     }
+}
+if ($verify -match 'ShouldThrottleRepeatedJob') {
+    throw 'Reservation-preflight build must not contain the old post-reservation job throttle.'
 }
