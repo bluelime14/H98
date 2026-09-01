@@ -58,7 +58,7 @@ jobs:
           Copy-Item 'meeseeks-patches/ThinkNode_MeeseeksCompleteTask_1.6.cs' 'meeseeks/Source/CM_Meeseeks_Box/Thinking/ThinkNode_MeeseeksCompleteTask.cs' -Force
           Copy-Item 'meeseeks-patches/WorkerDefUtility_1.6.cs' 'meeseeks/Source/CM_Meeseeks_Box/WorkerDefUtility.cs' -Force
 
-      - name: Harden mission WorkGiver scanning and retries
+      - name: Harden mission WorkGiver scanning and reservations
         shell: pwsh
         run: ./meeseeks-patches/harden-mission-scan.ps1
 
@@ -95,13 +95,10 @@ jobs:
           }
 
           $taskNode = Get-Content 'meeseeks/Source/CM_Meeseeks_Box/Thinking/ThinkNode_MeeseeksCompleteTask.cs' -Raw
-          foreach ($marker in @('TryMakeDirectSavedJob','CompMeeseeksMissionState','MeeseeksMissionKind','FindWorkTypeJob','FindRaidCombatJob','MurderFrustrationTicks','scanner.HasJobOnThing(pawn, thing, true)','scanner.HasJobOnCell(pawn, cell, true)','ShouldThrottleRepeatedJob')) {
+          foreach ($marker in @('TryMakeDirectSavedJob','CompMeeseeksMissionState','MeeseeksMissionKind','FindWorkTypeJob','FindRaidCombatJob','MurderFrustrationTicks','scanner.HasJobOnThing(pawn, thing, true)','scanner.HasJobOnCell(pawn, cell, true)','job.TryMakePreToilReservations(pawn, false)','ShouldThrottleRepeatedJob')) {
             if ($taskNode -notmatch [regex]::Escape($marker)) {
               throw "Meeseeks mission system marker missing: $marker"
             }
-          }
-          if ($taskNode -notmatch 'JobDrivers own pre-toil reservations') {
-            throw "Mission scanner still appears to own pre-toil reservations"
           }
 
           $raceXml = Get-Content 'meeseeks/Defs/AlienRaces/AlienRace_Meeseeks.xml' -Raw
@@ -119,7 +116,7 @@ jobs:
             throw "Meeseeks poof smoke is not using the short-lived density"
           }
 
-          Write-Host 'XML/HAR checks passed; persistent mission scanning uses vanilla HasJob filters, JobDriver reservations, retry throttling, and short-lived Meeseeks poof smoke.'
+          Write-Host 'XML/HAR checks passed; persistent mission scanning uses vanilla HasJob filters, reservation preflight, retry throttling, and short-lived Meeseeks poof smoke.'
 
       - name: Restore
         shell: pwsh
