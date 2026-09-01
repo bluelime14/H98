@@ -58,13 +58,15 @@ jobs:
           Copy-Item 'meeseeks-patches/ThinkNode_MeeseeksCompleteTask_1.6.cs' 'meeseeks/Source/CM_Meeseeks_Box/Thinking/ThinkNode_MeeseeksCompleteTask.cs' -Force
           Copy-Item 'meeseeks-patches/WorkerDefUtility_1.6.cs' 'meeseeks/Source/CM_Meeseeks_Box/WorkerDefUtility.cs' -Force
 
-      - name: Harden mission WorkGiver scanning and reservations
+      - name: Harden legacy mission fallback scanning
         shell: pwsh
         run: ./meeseeks-patches/harden-mission-scan.ps1
 
-      - name: Delegate WorkType missions to vanilla RimWorld scheduler
+      - name: Route WorkType missions through vanilla Meeseeks think tree
         shell: pwsh
-        run: Copy-Item 'meeseeks-patches/MeeseeksVanillaWorkQueuePatches.cs' 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksVanillaWorkQueuePatches.cs' -Force
+        run: |
+          Copy-Item 'meeseeks-patches/MeeseeksVanillaWorkThinkTreePatches.cs' 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksVanillaWorkThinkTreePatches.cs' -Force
+          ./meeseeks-patches/apply-vanilla-work-thinktree.ps1
 
       - name: Prevent random creator-murder breaks during active missions
         shell: pwsh
@@ -103,30 +105,34 @@ jobs:
           }
 
           $taskNode = Get-Content 'meeseeks/Source/CM_Meeseeks_Box/Thinking/ThinkNode_MeeseeksCompleteTask.cs' -Raw
-          foreach ($marker in @('TryMakeDirectSavedJob','CompMeeseeksMissionState','MeeseeksMissionKind','FindWorkTypeJob','FindRaidCombatJob','MurderFrustrationTicks','scanner.HasJobOnThing(pawn, thing, true)','scanner.HasJobOnCell(pawn, cell, true)','job.TryMakePreToilReservations(pawn, false)')) {
+          foreach ($marker in @('TryMakeDirectSavedJob','CompMeeseeksMissionState','MeeseeksMissionKind','FindRaidCombatJob','MurderFrustrationTicks')) {
             if ($taskNode -notmatch [regex]::Escape($marker)) {
               throw "Meeseeks mission system marker missing: $marker"
             }
           }
-          if ($taskNode -match 'ShouldThrottleRepeatedJob') {
-            throw "Unsafe post-reservation Meeseeks job throttle remains"
-          }
 
-          $vanillaQueue = Get-Content 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksVanillaWorkQueuePatches.cs' -Raw
-          foreach ($marker in @('JobGiver_Work','LockPawnToMissionWorkType','HasOutstandingWorkSignal','forced: false')) {
-            if ($vanillaQueue -notmatch [regex]::Escape($marker)) {
-              throw "Vanilla WorkType scheduler patch marker missing: $marker"
+          $vanillaThink = Get-Content 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksVanillaWorkThinkTreePatches.cs' -Raw
+          foreach ($marker in @('ThinkNode_ConditionalMeeseeksWorkMission','LockPawnToMissionWorkType','HasOutstandingWorkSignal','MeeseeksWorkMissionFriendlyAttackGuard','JobMaker.ReturnToPool')) {
+            if ($vanillaThink -notmatch [regex]::Escape($marker)) {
+              throw "v21 vanilla think-tree WorkType marker missing: $marker"
             }
           }
-          if ($vanillaQueue -match 'JobOnThing\(' -or $vanillaQueue -match 'JobOnCell\(') {
-            throw "Vanilla WorkType scheduler patch is directly manufacturing WorkGiver jobs"
+          if ($vanillaThink -match 'new\s+JobGiver_Work' -or $vanillaThink -match 'JobOnThing\(' -or $vanillaThink -match 'JobOnCell\(' -or $vanillaThink -match 'TryMakePreToilReservations\(') {
+            throw "v21 WorkType patch is still manufacturing or pre-reserving jobs instead of delegating to the think tree"
+          }
+
+          $thinkTree = Get-Content 'meeseeks/Defs/ThinkTreeDefs/ThinkTrees_Meeseeks.xml' -Raw
+          if ($thinkTree -notmatch 'CM_Meeseeks_Box.ThinkNode_ConditionalMeeseeksWorkMission' -or $thinkTree -notmatch '<li Class="JobGiver_Work"') {
+            throw "Vanilla JobGiver_Work was not inserted into the Meeseeks think tree"
+          }
+
+          if (Test-Path 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksVanillaWorkQueuePatches.cs') {
+            throw "v19 direct JobGiver_Work injection was accidentally included in v21"
           }
 
           $mentalPatch = Get-Content 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksMissionMentalBreakPatches.cs' -Raw
-          foreach ($marker in @('MentalBreakWorker','BreakCanOccur','CM_Meeseeks_Box_MentalBreak_MeeseeksKillCreator','__result = false')) {
-            if ($mentalPatch -notmatch [regex]::Escape($marker)) {
-              throw "Mission-safe mental break patch marker missing: $marker"
-            }
+          if ($mentalPatch -notmatch 'CM_Meeseeks_Box_MentalBreak_MeeseeksKillCreator') {
+            throw "Mission-safe mental break patch missing"
           }
 
           $raceXml = Get-Content 'meeseeks/Defs/AlienRaces/AlienRace_Meeseeks.xml' -Raw
@@ -144,7 +150,7 @@ jobs:
             throw "Meeseeks poof smoke is not using the short-lived density"
           }
 
-          Write-Host 'XML/HAR checks passed; WorkType missions use vanilla JobGiver_Work and random creator-murder mood breaks are suppressed while mission frustration can still directly trigger the intended snap state.'
+          Write-Host 'v21 validation passed: WorkType jobs are selected by the real Meeseeks think-tree JobGiver_Work; v19 direct scheduler injection is absent; mission completion/frustration, helper chains, combat missions and friendly-fire guard remain.'
 
       - name: Restore
         shell: pwsh
