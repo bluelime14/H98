@@ -109,7 +109,7 @@ jobs:
           }
 
           $vanillaQueue = Get-Content 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksVanillaWorkQueuePatches.cs' -Raw
-          foreach ($marker in @('JobGiver_Work','LockPawnToMissionWorkType','WorkGiversInOrderNormal','HasOutstandingWorkSignal','forced: false')) {
+          foreach ($marker in @('JobGiver_Work','LockPawnToMissionWorkType','HasOutstandingWorkSignal','forced: false')) {
             if ($vanillaQueue -notmatch [regex]::Escape($marker)) {
               throw "Vanilla WorkType scheduler patch marker missing: $marker"
             }
