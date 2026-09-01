@@ -27,6 +27,15 @@ jobs:
         shell: pwsh
         run: ./meeseeks-patches/apply-1.6.ps1
 
+      - name: Shorten Meeseeks poof smoke
+        shell: pwsh
+        run: |
+          $util = 'meeseeks/Source/CM_Meeseeks_Box/MeeseeksUtility.cs'
+          $text = Get-Content $util -Raw
+          $text = $text.Replace('GasType.BlindSmoke, 255', 'GasType.BlindSmoke, 48')
+          if ($text -match 'GasType\.BlindSmoke, 255') { throw 'Maximum-density Meeseeks poof smoke remains' }
+          Set-Content $util $text -Encoding UTF8
+
       - name: Convert HAR race to native RimWorld 1.6 race
         shell: pwsh
         run: ./meeseeks-patches/apply-native-race.ps1
@@ -98,7 +107,12 @@ jobs:
             throw "Legacy WorkerDefUtility debug spam remains"
           }
 
-          Write-Host 'XML parse check passed, active HAR references are gone, helper chains are installed, and persistent WorkType/raid/hunt mission behavior with frustration is active.'
+          $util = Get-Content 'meeseeks/Source/CM_Meeseeks_Box/MeeseeksUtility.cs' -Raw
+          if ($util -match 'GasType\.BlindSmoke, 255' -or $util -notmatch 'GasType\.BlindSmoke, 48') {
+            throw "Meeseeks poof smoke is not using the short-lived density"
+          }
+
+          Write-Host 'XML parse check passed, active HAR references are gone, helper chains are installed, persistent mission behavior is active, and Meeseeks poof smoke uses short-lived density.'
 
       - name: Restore
         shell: pwsh
