@@ -62,6 +62,10 @@ jobs:
         shell: pwsh
         run: ./meeseeks-patches/harden-mission-scan.ps1
 
+      - name: Delegate WorkType missions to vanilla RimWorld scheduler
+        shell: pwsh
+        run: Copy-Item 'meeseeks-patches/MeeseeksVanillaWorkQueuePatches.cs' 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksVanillaWorkQueuePatches.cs' -Force
+
       - name: Validate XML and HAR removal
         shell: pwsh
         run: |
@@ -104,6 +108,16 @@ jobs:
             throw "Unsafe post-reservation Meeseeks job throttle remains"
           }
 
+          $vanillaQueue = Get-Content 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksVanillaWorkQueuePatches.cs' -Raw
+          foreach ($marker in @('JobGiver_Work','LockPawnToMissionWorkType','WorkGiversInOrderNormal','HasOutstandingWorkSignal','forced: false')) {
+            if ($vanillaQueue -notmatch [regex]::Escape($marker)) {
+              throw "Vanilla WorkType scheduler patch marker missing: $marker"
+            }
+          }
+          if ($vanillaQueue -match 'JobOnThing\(' -or $vanillaQueue -match 'JobOnCell\(') {
+            throw "Vanilla WorkType scheduler patch is directly manufacturing WorkGiver jobs"
+          }
+
           $raceXml = Get-Content 'meeseeks/Defs/AlienRaces/AlienRace_Meeseeks.xml' -Raw
           if ($raceXml -notmatch 'CompProperties_MeeseeksMissionState') {
             throw "Meeseeks mission state comp was not added to native race"
@@ -119,7 +133,7 @@ jobs:
             throw "Meeseeks poof smoke is not using the short-lived density"
           }
 
-          Write-Host 'XML/HAR checks passed; persistent mission scanning uses vanilla HasJob filters, reservation preflight, and short-lived Meeseeks poof smoke.'
+          Write-Host 'XML/HAR checks passed; WorkType missions delegate to vanilla JobGiver_Work while Meeseeks retains mission completion, frustration, helper chains, combat missions, and short-lived poof smoke.'
 
       - name: Restore
         shell: pwsh
