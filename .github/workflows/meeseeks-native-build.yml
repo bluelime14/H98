@@ -66,6 +66,10 @@ jobs:
         shell: pwsh
         run: Copy-Item 'meeseeks-patches/MeeseeksVanillaWorkQueuePatches.cs' 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksVanillaWorkQueuePatches.cs' -Force
 
+      - name: Prevent random creator-murder breaks during active missions
+        shell: pwsh
+        run: Copy-Item 'meeseeks-patches/MeeseeksMissionMentalBreakPatches.cs' 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksMissionMentalBreakPatches.cs' -Force
+
       - name: Validate XML and HAR removal
         shell: pwsh
         run: |
@@ -118,6 +122,13 @@ jobs:
             throw "Vanilla WorkType scheduler patch is directly manufacturing WorkGiver jobs"
           }
 
+          $mentalPatch = Get-Content 'meeseeks/Source/CM_Meeseeks_Box/Patches/MeeseeksMissionMentalBreakPatches.cs' -Raw
+          foreach ($marker in @('MentalBreakWorker','BreakCanOccur','CM_Meeseeks_Box_MentalBreak_MeeseeksKillCreator','__result = false')) {
+            if ($mentalPatch -notmatch [regex]::Escape($marker)) {
+              throw "Mission-safe mental break patch marker missing: $marker"
+            }
+          }
+
           $raceXml = Get-Content 'meeseeks/Defs/AlienRaces/AlienRace_Meeseeks.xml' -Raw
           if ($raceXml -notmatch 'CompProperties_MeeseeksMissionState') {
             throw "Meeseeks mission state comp was not added to native race"
@@ -133,7 +144,7 @@ jobs:
             throw "Meeseeks poof smoke is not using the short-lived density"
           }
 
-          Write-Host 'XML/HAR checks passed; WorkType missions delegate to vanilla JobGiver_Work while Meeseeks retains mission completion, frustration, helper chains, combat missions, and short-lived poof smoke.'
+          Write-Host 'XML/HAR checks passed; WorkType missions use vanilla JobGiver_Work and random creator-murder mood breaks are suppressed while mission frustration can still directly trigger the intended snap state.'
 
       - name: Restore
         shell: pwsh
