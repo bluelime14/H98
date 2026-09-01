@@ -95,10 +95,13 @@ jobs:
           }
 
           $taskNode = Get-Content 'meeseeks/Source/CM_Meeseeks_Box/Thinking/ThinkNode_MeeseeksCompleteTask.cs' -Raw
-          foreach ($marker in @('TryMakeDirectSavedJob','CompMeeseeksMissionState','MeeseeksMissionKind','FindWorkTypeJob','FindRaidCombatJob','MurderFrustrationTicks','scanner.HasJobOnThing(pawn, thing, true)','scanner.HasJobOnCell(pawn, cell, true)','job.TryMakePreToilReservations(pawn, false)','ShouldThrottleRepeatedJob')) {
+          foreach ($marker in @('TryMakeDirectSavedJob','CompMeeseeksMissionState','MeeseeksMissionKind','FindWorkTypeJob','FindRaidCombatJob','MurderFrustrationTicks','scanner.HasJobOnThing(pawn, thing, true)','scanner.HasJobOnCell(pawn, cell, true)','job.TryMakePreToilReservations(pawn, false)')) {
             if ($taskNode -notmatch [regex]::Escape($marker)) {
               throw "Meeseeks mission system marker missing: $marker"
             }
+          }
+          if ($taskNode -match 'ShouldThrottleRepeatedJob') {
+            throw "Unsafe post-reservation Meeseeks job throttle remains"
           }
 
           $raceXml = Get-Content 'meeseeks/Defs/AlienRaces/AlienRace_Meeseeks.xml' -Raw
@@ -116,7 +119,7 @@ jobs:
             throw "Meeseeks poof smoke is not using the short-lived density"
           }
 
-          Write-Host 'XML/HAR checks passed; persistent mission scanning uses vanilla HasJob filters, reservation preflight, retry throttling, and short-lived Meeseeks poof smoke.'
+          Write-Host 'XML/HAR checks passed; persistent mission scanning uses vanilla HasJob filters, reservation preflight, and short-lived Meeseeks poof smoke.'
 
       - name: Restore
         shell: pwsh
