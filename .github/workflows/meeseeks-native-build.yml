@@ -42,7 +42,7 @@ jobs:
 
       - name: Apply RimWorld 1.6 Meeseeks name rules
         shell: pwsh
-        run: Copy-Item 'meeseeks-patches/RulePacks_Namers_Meeseeks_1.6.xml' 'meeseeks/Defs/RulePackDefs/RulePacks_Namers_Meeseeks.xml' -Force
+        run: Copy-Item 'meeseeks-patches/RulePackDefs_Namers_Meeseeks_1.6.xml' 'meeseeks/Defs/RulePackDefs/RulePacks_Namers_Meeseeks.xml' -Force
 
       - name: Add 1.6 Meeseeks box debug controls
         shell: pwsh
@@ -57,6 +57,157 @@ jobs:
         run: |
           Copy-Item 'meeseeks-patches/ThinkNode_MeeseeksCompleteTask_1.6.cs' 'meeseeks/Source/CM_Meeseeks_Box/Thinking/ThinkNode_MeeseeksCompleteTask.cs' -Force
           Copy-Item 'meeseeks-patches/WorkerDefUtility_1.6.cs' 'meeseeks/Source/CM_Meeseeks_Box/WorkerDefUtility.cs' -Force
+
+      - name: Harden mission WorkGiver scanning and retries
+        shell: pwsh
+        run: |
+          $task = 'meeseeks/Source/CM_Meeseeks_Box/Thinking/ThinkNode_MeeseeksCompleteTask.cs'
+          $text = Get-Content $task -Raw
+
+          # Vanilla JobGiver_Work filters scanner targets through HasJobOnThing/HasJobOnCell
+          # before calling JobOnThing/JobOnCell. The v16 mission scanner skipped those checks,
+          # allowing jobs such as BuildRoof to be manufactured for already-roofed/reserved cells.
+          $thingPattern = 'Job candidateJob = null;\s*try\s*\{\s*candidateJob = scanner\.JobOnThing\(pawn, thing, true\);\s*\}\s*catch\s*\{\s*\}'
+          $thingRegex = [regex]::new($thingPattern)
+          if ($thingRegex.Matches($text).Count -ne 1) {
+            throw 'Could not uniquely locate mission JobOnThing scan block.'
+          }
+          $thingReplacement = @'
+                            bool hasJobOnThing = false;
+                            try
+                            {
+                                hasJobOnThing = !thing.IsForbidden(pawn) &&
+                                                scanner.HasJobOnThing(pawn, thing, true);
+                            }
+                            catch
+                            {
+                                hasJobOnThing = false;
+                            }
+
+                            if (!hasJobOnThing)
+                                continue;
+
+                            Job candidateJob = null;
+                            try
+                            {
+                                candidateJob = scanner.JobOnThing(pawn, thing, true);
+                            }
+                            catch
+                            {
+                            }
+'@
+          $text = $thingRegex.Replace($text, $thingReplacement.TrimEnd(), 1)
+
+          $cellPattern = 'Job candidateJob = null;\s*try\s*\{\s*candidateJob = scanner\.JobOnCell\(pawn, cell, true\);\s*\}\s*catch\s*\{\s*\}'
+          $cellRegex = [regex]::new($cellPattern)
+          if ($cellRegex.Matches($text).Count -ne 1) {
+            throw 'Could not uniquely locate mission JobOnCell scan block.'
+          }
+          $cellReplacement = @'
+                            bool hasJobOnCell = false;
+                            try
+                            {
+                                hasJobOnCell = !cell.IsForbidden(pawn) &&
+                                               scanner.HasJobOnCell(pawn, cell, true);
+                            }
+                            catch
+                            {
+                                hasJobOnCell = false;
+                            }
+
+                            if (!hasJobOnCell)
+                                continue;
+
+                            Job candidateJob = null;
+                            try
+                            {
+                                candidateJob = scanner.JobOnCell(pawn, cell, true);
+                            }
+                            catch
+                            {
+                            }
+'@
+          $text = $cellRegex.Replace($text, $cellReplacement.TrimEnd(), 1)
+
+          # Reservation belongs to the JobDriver at job start. Doing it during mission scanning
+          # can reserve a target before StartJob and make the actual driver immediately fail/retry.
+          $reservePattern = 'try\s*\{\s*if \(!job\.TryMakePreToilReservations\(pawn, false\)\)\s*return null;\s*\}\s*catch\s*\{\s*return null;\s*\}\s*return job;'
+          $reserveRegex = [regex]::new($reservePattern)
+          if ($reserveRegex.Matches($text).Count -lt 1) {
+            throw 'Could not locate PrepareJob pre-reservation block.'
+          }
+          $reserveReplacement = @'
+            // JobDrivers own pre-toil reservations. Mission scanning only validates and chooses work.
+            return job;
+'@
+          $text = $reserveRegex.Replace($text, $reserveReplacement.TrimEnd(), 1)
+
+          # Add a per-pawn emergency throttle. If the same WorkGiver job fails instantly for any
+          # reason, do not let the think tree recreate it ten times in the same tick.
+          $fieldMarker = '        private bool snapped = false;'
+          if (-not $text.Contains($fieldMarker)) {
+            throw 'Could not locate Meeseeks mission-state fields.'
+          }
+          $fieldInsert = @'
+        private bool snapped = false;
+        private int lastIssuedMissionJobTick = -999999;
+        private string lastIssuedMissionJobSignature = null;
+'@
+          $text = $text.Replace($fieldMarker, $fieldInsert.TrimEnd())
+
+          $methodMarker = '        public void NotifyRunnableWork()'
+          if (-not $text.Contains($methodMarker)) {
+            throw 'Could not locate NotifyRunnableWork insertion point.'
+          }
+          $methodInsert = @'
+        public bool ShouldThrottleRepeatedJob(Job job)
+        {
+            if (job == null || job.def == null)
+                return false;
+
+            int now = Find.TickManager.TicksGame;
+            string signature = job.def.defName + "|" +
+                               job.GetTarget(TargetIndex.A).ToString() + "|" +
+                               job.GetTarget(TargetIndex.B).ToString() + "|" +
+                               job.GetTarget(TargetIndex.C).ToString();
+
+            if (signature == lastIssuedMissionJobSignature &&
+                now - lastIssuedMissionJobTick < 30)
+            {
+                return true;
+            }
+
+            lastIssuedMissionJobSignature = signature;
+            lastIssuedMissionJobTick = now;
+            return false;
+        }
+
+        public void NotifyRunnableWork()
+'@
+          $text = $text.Replace($methodMarker, $methodInsert.TrimEnd())
+
+          $issuePattern = 'if \(missionJob != null\)\s*\{\s*missionState\?\.NotifyRunnableWork\(\);\s*return new ThinkResult\(missionJob, this, JobTag\.MiscWork, fromQueue: false\);\s*\}'
+          $issueRegex = [regex]::new($issuePattern)
+          if ($issueRegex.Matches($text).Count -ne 1) {
+            throw 'Could not uniquely locate mission-job issue block.'
+          }
+          $issueReplacement = @'
+                if (missionJob != null)
+                {
+                    if (missionState?.ShouldThrottleRepeatedJob(missionJob) == true)
+                    {
+                        missionState.NotifyWaitingOnFamily();
+                        Job retryWait = JobMaker.MakeJob(JobDefOf.Wait_MaintainPosture, 30);
+                        return new ThinkResult(retryWait, this, JobTag.MiscWork, fromQueue: false);
+                    }
+
+                    missionState?.NotifyRunnableWork();
+                    return new ThinkResult(missionJob, this, JobTag.MiscWork, fromQueue: false);
+                }
+'@
+          $text = $issueRegex.Replace($text, $issueReplacement.TrimEnd(), 1)
+
+          Set-Content $task $text -Encoding UTF8
 
       - name: Validate XML and HAR removal
         shell: pwsh
@@ -91,10 +242,13 @@ jobs:
           }
 
           $taskNode = Get-Content 'meeseeks/Source/CM_Meeseeks_Box/Thinking/ThinkNode_MeeseeksCompleteTask.cs' -Raw
-          foreach ($marker in @('TryMakeDirectSavedJob','CompMeeseeksMissionState','MeeseeksMissionKind','FindWorkTypeJob','FindRaidCombatJob','MurderFrustrationTicks')) {
+          foreach ($marker in @('TryMakeDirectSavedJob','CompMeeseeksMissionState','MeeseeksMissionKind','FindWorkTypeJob','FindRaidCombatJob','MurderFrustrationTicks','scanner.HasJobOnThing(pawn, thing, true)','scanner.HasJobOnCell(pawn, cell, true)','ShouldThrottleRepeatedJob')) {
             if ($taskNode -notmatch [regex]::Escape($marker)) {
               throw "Meeseeks mission system marker missing: $marker"
             }
+          }
+          if ($taskNode -notmatch 'JobDrivers own pre-toil reservations') {
+            throw "Mission scanner still appears to own pre-toil reservations"
           }
 
           $raceXml = Get-Content 'meeseeks/Defs/AlienRaces/AlienRace_Meeseeks.xml' -Raw
@@ -112,7 +266,7 @@ jobs:
             throw "Meeseeks poof smoke is not using the short-lived density"
           }
 
-          Write-Host 'XML parse check passed, active HAR references are gone, helper chains are installed, persistent mission behavior is active, and Meeseeks poof smoke uses short-lived density.'
+          Write-Host 'XML/HAR checks passed; persistent mission scanning uses vanilla HasJob filters, JobDriver reservations, retry throttling, and short-lived Meeseeks poof smoke.'
 
       - name: Restore
         shell: pwsh
