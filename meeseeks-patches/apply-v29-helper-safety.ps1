@@ -124,7 +124,7 @@ $tree = Get-Content $treePath -Raw
 #       <li Class="JobGiver_ConfigurableHostilityResponse" /> -->
 # Replace the whole comment, not just the <li> text inside it.
 $commentedHostility = '(?s)<!--\s*Hostility response\s*<li\s+Class="JobGiver_ConfigurableHostilityResponse"\s*/>\s*-->'
-$activeHostility = "<!-- Hostility response -->`r`n            <li Class=\"JobGiver_ConfigurableHostilityResponse\" />"
+$activeHostility = '<!-- Hostility response -->' + "`r`n" + '            <li Class="JobGiver_ConfigurableHostilityResponse" />'
 
 if ($tree -match $commentedHostility) {
     $tree = [regex]::Replace($tree, $commentedHostility, $activeHostility, 1)
