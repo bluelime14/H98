@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <!--
+    Meeseeks are created fully formed. Do not use RimWorld's HumanlikeAdult life-stage worker:
+    in 1.6 that worker assumes an existing previous juvenile stage when a player-faction pawn
+    enters adulthood during play. A freshly generated Meeseeks has no previous stage, so the
+    human-specific transition worker can dereference null during pawn construction.
+
+    The base LifeStageWorker performs only the generic capacity refresh, which is exactly what
+    a one-stage, always-adult summoned race needs. Humanlike rendering in RimWorld 1.6 also
+    assumes every current life stage has silhouetteGraphicData, so preserve the vanilla adult
+    silhouette metadata without restoring the unsafe HumanlikeAdult worker.
+  -->
+  <LifeStageDef>
+    <defName>CM_Meeseeks_Box_LifeStage_Adult</defName>
+    <label>adult</label>
+    <visible>false</visible>
+    <developmentalStage>Adult</developmentalStage>
+    <sittingOffset>0.18</sittingOffset>
+    <silhouetteGraphicData>
+      <texPath>Things/Pawn/Humanlike/Silhouettes/Silhouette_HumanAdult</texPath>
+      <graphicClass>Graphic_Single</graphicClass>
+      <drawSize>1</drawSize>
+    </silhouetteGraphicData>
+  </LifeStageDef>
+
+  <!-- RimWorld 1.6 native Meeseeks race. No Humanoid Alien Races dependency. -->
+  <ThingDef ParentName="BasePawn">
+    <defName>MeeseeksRace</defName>
+    <label>Meeseeks</label>
+    <description>Meeseeks are creatures who are created to serve a singular purpose for which they will go to any length to fulfill.</description>
+
+    <statBases>
+      <MarketValue>0</MarketValue>
+      <MoveSpeed>3.0</MoveSpeed>
+      <Flammability>0.7</Flammability>
+      <PsychicSensitivity>0.5</PsychicSensitivity>
+      <ComfyTemperatureMin>-100</ComfyTemperatureMin>
+      <ComfyTemperatureMax>100</ComfyTemperatureMax>
+      <PainShockThreshold>5</PainShockThreshold>
+      <ToxicResistance>1</ToxicResistance>
+      <MentalBreakThreshold>0.40</MentalBreakThreshold>
+      <GlobalLearningFactor>0</GlobalLearningFactor>
+      <WorkSpeedGlobal>0.50</WorkSpeedGlobal>
+      <ImmunityGainSpeed>10</ImmunityGainSpeed>
+      <LeatherAmount>0</LeatherAmount>
+      <MeatAmount>0</MeatAmount>
+      <SocialImpact>0.5</SocialImpact>
+      <Mass>40</Mass>
+      <RoyalFavorValue>0</RoyalFavorValue>
+    </statBases>
+
+    <tools>
+      <li>
+        <label>right fist</label>
+        <capacities><li>Blunt</li></capacities>
+        <power>3</power>
+        <cooldownTime>2</cooldownTime>
+        <linkedBodyPartsGroup>RightHand</linkedBodyPartsGroup>
+      </li>
+      <li>
+        <label>left fist</label>
+        <capacities><li>Blunt</li></capacities>
+        <power>3</power>
+        <cooldownTime>2</cooldownTime>
+        <linkedBodyPartsGroup>LeftHand</linkedBodyPartsGroup>
+      </li>
+      <li>
+        <label>teeth</label>
+        <capacities><li>Bite</li></capacities>
+        <power>3</power>
+        <cooldownTime>2</cooldownTime>
+        <linkedBodyPartsGroup>Teeth</linkedBodyPartsGroup>
+        <chanceFactor>0.07</chanceFactor>
+        <soundMeleeHit>Pawn_Melee_HumanBite_Hit</soundMeleeHit>
+        <soundMeleeMiss>Pawn_Melee_HumanBite_Miss</soundMeleeMiss>
+      </li>
+      <li>
+        <label>head</label>
+        <capacities><li>Blunt</li></capacities>
+        <power>1</power>
+        <cooldownTime>2</cooldownTime>
+        <linkedBodyPartsGroup>HeadAttackTool</linkedBodyPartsGroup>
+        <chanceFactor>0.2</chanceFactor>
+      </li>
+    </tools>
+
+    <comps>
+      <li Class="CM_Meeseeks_Box.CompProperties_MeeseeksMemory">
+        <compClass>CM_Meeseeks_Box.CompMeeseeksMemory</compClass>
+      </li>
+      <li Class="CM_Meeseeks_Box.CompProperties_MeeseeksMissionState">
+        <compClass>CM_Meeseeks_Box.CompMeeseeksMissionState</compClass>
+      </li>
+    </comps>
+
+    <race>
+      <thinkTreeMain>MeeseeksThinkTree</thinkTreeMain>
+      <thinkTreeConstant>MeeseeksConstantThinkTree</thinkTreeConstant>
+      <intelligence>Humanlike</intelligence>
+      <makesFootprints>true</makesFootprints>
+      <renderTree>Humanlike</renderTree>
+      <lifeExpectancy>200</lifeExpectancy>
+      <nameGenerator>MeeseeksNameRulePack</nameGenerator>
+      <nameCategory>HumanStandard</nameCategory>
+      <body>CM_Meeseeks_Box_Body_Meeseeks</body>
+      <baseHealthScale>0.8</baseHealthScale>
+      <needsRest>false</needsRest>
+      <alwaysAwake>true</alwaysAwake>
+      <foodType>OmnivoreHuman</foodType>
+      <baseHungerRate>0.0</baseHungerRate>
+      <fleshType>Normal</fleshType>
+      <bloodDef>MeeseeksBlood</bloodDef>
+      <baseBodySize>1.0</baseBodySize>
+      <gestationPeriodDays>1</gestationPeriodDays>
+      <canBePredatorPrey>false</canBePredatorPrey>
+      <forceGender>Male</forceGender>
+      <disableMating>true</disableMating>
+      <neverIncludeInQuests>true</neverIncludeInQuests>
+      <hasMeat>false</hasMeat>
+      <canBecomeShambler>false</canBecomeShambler>
+
+      <lifeStageAges>
+        <li>
+          <def>CM_Meeseeks_Box_LifeStage_Adult</def>
+          <minAge>0</minAge>
+        </li>
+      </lifeStageAges>
+
+      <litterSizeCurve>
+        <points>
+          <li>(0.5, 0)</li>
+          <li>(1, 1)</li>
+          <li>(1.01, 0.02)</li>
+          <li>(3.5, 0)</li>
+        </points>
+      </litterSizeCurve>
+
+      <hediffGiverSets>
+        <li>OrganicStandard</li>
+        <li>Human</li>
+      </hediffGiverSets>
+
+      <soundMeleeHitPawn>Pawn_Melee_Punch_HitPawn</soundMeleeHitPawn>
+      <soundMeleeHitBuilding>Pawn_Melee_Punch_HitBuilding_Generic</soundMeleeHitBuilding>
+      <soundMeleeMiss>Pawn_Melee_Punch_Miss</soundMeleeMiss>
+      <soundMeleeDodge>Pawn_MeleeDodge</soundMeleeDodge>
+      <specialShadowData>
+        <volume>(0.3, 0.8, 0.4)</volume>
+        <offset>(0,0,-0.3)</offset>
+      </specialShadowData>
+    </race>
+  </ThingDef>
+
+  <TraitDef>
+    <defName>CM_Meeseeks_Box_Trait_Meeseeks</defName>
+    <commonality>0</commonality>
+    <degreeDatas>
+      <li>
+        <degree>0</degree>
+        <label>Meeseeks</label>
+        <description>Existence is pain to a Meeseeks, and they will do anything to alleviate that pain.</description>
+      </li>
+    </degreeDatas>
+  </TraitDef>
+</Defs>
