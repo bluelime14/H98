@@ -119,13 +119,15 @@ Set-Content $driverPath $driver -Encoding UTF8
 $treePath = 'meeseeks/Defs/ThinkTreeDefs/ThinkTrees_Meeseeks.xml'
 $tree = Get-Content $treePath -Raw
 
-$commentedHostility = '<!--\s*<li\s+Class="JobGiver_ConfigurableHostilityResponse"\s*/>\s*-->'
-$activeHostility = '<li Class="JobGiver_ConfigurableHostilityResponse" />'
+# In the original XML the node is inside a two-line comment:
+#   <!-- Hostility response
+#       <li Class="JobGiver_ConfigurableHostilityResponse" /> -->
+# Replace the whole comment, not just the <li> text inside it.
+$commentedHostility = '(?s)<!--\s*Hostility response\s*<li\s+Class="JobGiver_ConfigurableHostilityResponse"\s*/>\s*-->'
+$activeHostility = "<!-- Hostility response -->`r`n            <li Class=\"JobGiver_ConfigurableHostilityResponse\" />"
 
 if ($tree -match $commentedHostility) {
     $tree = [regex]::Replace($tree, $commentedHostility, $activeHostility, 1)
-} elseif ($tree -notmatch '<li\s+Class="JobGiver_ConfigurableHostilityResponse"\s*/>') {
-    throw 'v29 Fix 3: configurable hostility response node was neither commented nor active.'
 }
 
 Set-Content $treePath $tree -Encoding UTF8
@@ -147,10 +149,11 @@ foreach ($marker in @('using System;','!newestCreated.Destroyed && newestCreated
     }
 }
 
-$treeFinal = Get-Content $treePath -Raw
-if ($treeFinal -notmatch '<li\s+Class="JobGiver_ConfigurableHostilityResponse"\s*/>' -or
-    $treeFinal -match '<!--\s*<li\s+Class="JobGiver_ConfigurableHostilityResponse"') {
-    throw 'v29 validation: hostility response node is not active.'
+# Validate through the XML DOM so text inside a comment cannot produce a false positive.
+[xml]$treeXml = Get-Content $treePath -Raw
+$hostilityNodes = $treeXml.SelectNodes("//ThinkTreeDef[defName='MeeseeksConstantThinkTree']//li[@Class='JobGiver_ConfigurableHostilityResponse']")
+if ($null -eq $hostilityNodes -or $hostilityNodes.Count -ne 1) {
+    throw "v29 validation: expected exactly one active JobGiver_ConfigurableHostilityResponse under MeeseeksConstantThinkTree; found $($hostilityNodes.Count)."
 }
 
 Write-Host 'v29 helper safety applied: immediate inherited-task hand-off, guarded delayed hand-off, and constant-think-tree hostility response are active.'
