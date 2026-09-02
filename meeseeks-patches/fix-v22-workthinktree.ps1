@@ -116,4 +116,8 @@ foreach ($marker in @('JobGiver_MeeseeksMissionWork','base.TryIssueJobPackage','
 # directly instead of decompiling/recompiling the DLL.
 & "$PSScriptRoot/fix-work-priority-gating.ps1"
 
-Write-Host 'v28 source build: v22 vanilla-work wrapper plus disabled-work priority gating fix applied without DLL decompilation.'
+# 6) Apply the remaining helper safety changes directly to the clean source tree:
+# immediate inherited-task hand-off, guarded delayed hand-off, and constant hostility response.
+& "$PSScriptRoot/apply-v29-helper-safety.ps1"
+
+Write-Host 'v29 source build: clean v28 baseline plus immediate helper hand-off, guarded delayed hand-off, and hostility response.'
