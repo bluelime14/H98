@@ -109,4 +109,11 @@ if ($final -match 'MeeseeksWorkMissionFriendlyAttackGuard' -or $final -match 'Ha
 foreach ($marker in @('JobGiver_MeeseeksMissionWork','base.TryIssueJobPackage','workSettingsInitialized','LockPawnToMissionWorkType')) {
     if ($final -notmatch [regex]::Escape($marker)) { throw "v22 work wrapper marker missing: $marker" }
 }
-Write-Host 'v22: removed StartJob interception and wrapped vanilla JobGiver_Work with summoned-helper work-settings initialization and diagnostics.'
+
+# 5) RimWorld 1.6 builds the normal WorkGiver list by calling Pawn_WorkSettings.GetPriority
+# for every WorkTypeDef. The original Meeseeks postfix forced even disabled work types to the
+# default priority, defeating our mission WorkType lock. Apply the fix to the original source
+# directly instead of decompiling/recompiling the DLL.
+& "$PSScriptRoot/fix-work-priority-gating.ps1"
+
+Write-Host 'v28 source build: v22 vanilla-work wrapper plus disabled-work priority gating fix applied without DLL decompilation.'
